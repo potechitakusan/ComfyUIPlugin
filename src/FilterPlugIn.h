@@ -3,6 +3,12 @@
  * @author 青猫 (AonekoSS)
  * @brief フィルタープラグインAPI
  */
+/**
+ * @file FilterPlugIn.h
+ * @author consome hollywood
+ * @brief  isRectEmpty、intersectRects、addressOffset、BlendFunction の宣言を追加
+ */
+
 #pragma once
 #include <functional>
 
@@ -276,6 +282,11 @@ namespace FilterPlugIn {
 	extern void Transfer(const Block& dst, const Block& src);
 	extern void Transfer(const Block& dst, const Block& src, const Block& alpha);
 	extern void Transfer(const Block& dst, const Block& src, const Block& alpha, const Block& select);
+
+    extern bool isRectEmpty(const Rect& rect);
+	extern Rect intersectRects(const Rect& a, const Rect& b);
+	extern Int addressOffset(const Block& block, const Rect& target);
+	extern inline int BlendFunction(const int dst, const int src, const int alpha);
 
 	/// オブジェクトベース（releaseProcで解放するタイプのやつ用）
 	template < class OBJECT, class SERVICE >

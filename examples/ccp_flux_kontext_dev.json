@@ -1,0 +1,172 @@
+{
+  "39": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "VAEを読み込む"
+    }
+  },
+  "124": {
+    "inputs": {
+      "pixels": [
+        "133",
+        0
+      ],
+      "vae": [
+        "39",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAEエンコード"
+    }
+  },
+  "133": {
+    "inputs": {
+      "image": "temp_img_req_yyyyMMddhhmmss.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "画像を読み込む"
+    }
+  },
+  "176": {
+    "inputs": {
+      "conditioning": [
+        "181",
+        0
+      ],
+      "latent": [
+        "124",
+        0
+      ]
+    },
+    "class_type": "ReferenceLatent",
+    "_meta": {
+      "title": "ReferenceLatent"
+    }
+  },
+  "177": {
+    "inputs": {
+      "samples": [
+        "178",
+        0
+      ],
+      "vae": [
+        "39",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAEデコード"
+    }
+  },
+  "178": {
+    "inputs": {
+      "seed": 299473139110613,
+      "steps": 10,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "183",
+        0
+      ],
+      "positive": [
+        "179",
+        0
+      ],
+      "negative": [
+        "182",
+        0
+      ],
+      "latent_image": [
+        "124",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "Kサンプラー"
+    }
+  },
+  "179": {
+    "inputs": {
+      "guidance": 2.5,
+      "conditioning": [
+        "176",
+        0
+      ]
+    },
+    "class_type": "FluxGuidance",
+    "_meta": {
+      "title": "フラックスガイダンス"
+    }
+  },
+  "180": {
+    "inputs": {
+      "filename_prefix": "CLIPSTUDIO_ComfyUI_PLUGIN\\CCPImage",
+      "images": [
+        "177",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "画像を保存"
+    }
+  },
+  "181": {
+    "inputs": {
+      "text": "###input1###",
+      "clip": [
+        "184",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "182": {
+    "inputs": {
+      "text": "",
+      "clip": [
+        "184",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "183": {
+    "inputs": {
+      "unet_name": "flux1KontextDev_v10Fp8E4m3fn.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "拡散モデルを読み込む"
+    }
+  },
+  "184": {
+    "inputs": {
+      "clip_name1": "clip_l.safetensors",
+      "clip_name2": "flan-t5-xxl_TE-only_FP32.safetensors",
+      "type": "flux",
+      "device": "default"
+    },
+    "class_type": "DualCLIPLoader",
+    "_meta": {
+      "title": "デュアルCLIPを読み込む"
+    }
+  }
+}
