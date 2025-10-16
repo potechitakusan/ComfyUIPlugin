@@ -10,6 +10,7 @@
 #include <string>
 #include <cstdlib> // system関数のために必要
 #include <sstream> // ファイル読み込みのために必要
+#include <array>
 #include <wchar.h> // ワイド文字用（日本語フォルダ用を想定したがなくても良いかも）
 #include <chrono>  // sleep_for
 #include <thread>  // sleep_for
@@ -33,11 +34,23 @@ const std::string SERVER_ADDRESS_DEFAULT = "http://127.0.0.1:8188";
 
 // 置換対象のマーカー 入力画像
 const std::string MARKER_INPUT_IMAGE = "temp_img_req_yyyyMMddhhmmss.png"; 
-const std::string MARKER_SUBINPUT_IMAGE = "temp_subimg_req_yyyyMMddhhmmss.png"; 
+constexpr size_t kSubImageDropdownCount = 3;
+const std::array<std::string, kSubImageDropdownCount> kSubImageMarkers = {
+	"temp_subimg_req_yyyyMMddhhmmss.png",
+	"temp_subimg2_req_yyyyMMddhhmmss.png",
+	"temp_subimg3_req_yyyyMMddhhmmss.png"
+};
+const std::array<std::string, kSubImageDropdownCount> kSubImageUploadPrefixes = {
+	"temp_subimg_req_",
+	"temp_subimg2_req_",
+	"temp_subimg3_req_"
+};
 
 // 置換対象のマーカー プロンプト
 const std::string MARKER_PROMPT = "###input1###"; 
 const std::string MARKER_NPROMPT = "###input2###"; 
+
+const std::string kNoImageDisplayName = "(no image)";
 
 /// このDLLのベースパス
 std::string g_BasePath;
@@ -65,7 +78,7 @@ std::string g_TempHistoryResultJsonPath;
 // パラメーター構造体
 struct Params {
      std::string template_workflow_filename;
-     std::string input_subimage_filename;
+     std::array<std::string, kSubImageDropdownCount> input_subimage_filenames;
      std::string prompt;
      std::string negative_prompt;
      int sample_steps;
@@ -76,7 +89,7 @@ struct FilterInfo {
 	FilterPlugIn::Server const* server;
 	Params params;
 	int setting;
-	int subimage_index;
+	std::array<int, kSubImageDropdownCount> subimage_indices;
 };
 
 
@@ -508,20 +521,36 @@ std::string ansi_to_utf8(const std::string& ansi_str) {
  * @return 置換後の文字列
  */
 std::string replace_all(std::string str, const std::string& from, const std::string& to) {
+	if (from.empty()) {
+		return str;
+	}
+	const std::string utf8_string = ansi_to_utf8(to);
+	const size_t replacementLength = utf8_string.length();
     size_t start_pos = 0;
     while((start_pos = str.find(from, start_pos)) != std::string::npos) {
-		std::string utf8_string = ansi_to_utf8(to);
         str.replace(start_pos, from.length(), utf8_string);
-        start_pos += to.length(); // 置換後の文字列の長さから検索を再開
+		if (replacementLength > 0) {
+			start_pos += replacementLength;
+		} else {
+			start_pos += from.length();
+		}
     }
     return str;
 }
 
 std::wstring replace_all(std::wstring str, const std::wstring& from, const std::wstring& to) {
+	if (from.empty()) {
+		return str;
+	}
+	const size_t replacementLength = to.length();
     size_t start_pos = 0;
     while((start_pos = str.find(from, start_pos)) != std::wstring::npos) {
         str.replace(start_pos, from.length(), to);
-        start_pos += to.length(); // 置換後の文字列の長さから検索を再開
+		if (replacementLength > 0) {
+			start_pos += replacementLength;
+		} else {
+			start_pos += from.length();
+		}
     }
     return str;
 }
@@ -561,6 +590,25 @@ std::string queue_prompt(const std::string prompt_json) {
     std::string history_content;
 	for (int i = 0; i < g_RetryMaxCount; i++) {
 		history_content = get_history(prompt_id);
+        size_t error_pos = history_content.find("execution_error");
+		if (error_pos != std::string::npos) {
+			print("");
+			print("history has returned execution error");
+			print("");
+			size_t message_pos = history_content.find("exception_message");
+			if (message_pos != std::string::npos) {
+                std::string message = history_content.substr(message_pos);
+				message = replace_all(message, "\\\\n", "###back_to_n###");
+				message = replace_all(message, "\\n", "\n");
+				message = replace_all(message, "###back_to_n###", "\\\\n");
+				message = replace_all(message, "\", \"", "");
+				
+				print(message.c_str());
+				print("");
+
+			}			
+			return "";
+		}
         size_t image_pos = history_content.find("CCPImage_");
 		if (image_pos == std::string::npos) {
             std::this_thread::sleep_for(std::chrono::seconds(g_RetryWaitSeconds)); 
@@ -649,6 +697,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD  fdwReason, LPVOID lpReserved) {
 enum PropertyKey {
 	ITEM_SETTING = 1,
 	ITEM_SUBIMAGE,
+	ITEM_SUBIMAGE_PICTURE3,
+	ITEM_SUBIMAGE_PICTURE4,
 	ITEM_PROMPT,
 	ITEM_NPROMPT,
 };
@@ -664,6 +714,7 @@ static bool InitializeModule(FilterPlugIn::Server* server, FilterPlugIn::Ptr* da
 	// 情報インスタンス
 	auto info = new FilterInfo;
 	info->server = server;
+	info->subimage_indices.fill(0);
 	*data = info;
 
 	return true;
@@ -737,6 +788,21 @@ static std::vector<std::string> GetSubImages()
     return imageFiles;
 }
 
+static int GetNoImageSelectionIndex() {
+	return static_cast<int>(g_SubImages.size());
+}
+
+static bool IsNoImageSelection(int selection) {
+	return selection < 0 || selection >= static_cast<int>(g_SubImages.size());
+}
+
+static std::string ResolveSubImageFilename(int selection) {
+	if (selection >= 0 && selection < static_cast<int>(g_SubImages.size())) {
+		return g_SubImages[selection];
+	}
+	return "";
+}
+
 
 /// プロパティの初期化
 static void InitProperty(FilterPlugIn::Property& p) {
@@ -745,10 +811,22 @@ static void InitProperty(FilterPlugIn::Property& p) {
 		setting.addValue(i, ShiftJIS_to_UTF16(g_Settings[i])); // UI側はUNICODEが良い
 	}
 
-	auto subimage = p.addEnumerationItem(ITEM_SUBIMAGE, "SubImage");
-	for(int i = 0; i < g_SubImages.size(); ++i) {
-		subimage.addValue(i, ShiftJIS_to_UTF16(g_SubImages[i])); // UI側はUNICODEが良い
-	}
+	const int noImageIndex = static_cast<int>(g_SubImages.size());
+	auto addSubImageValues = [&](const FilterPlugIn::Property::EnumerationItem& enumeration) {
+		for(int i = 0; i < g_SubImages.size(); ++i) {
+			enumeration.addValue(i, ShiftJIS_to_UTF16(g_SubImages[i])); // UI側はUNICODEが良い
+		}
+		enumeration.addValue(noImageIndex, ShiftJIS_to_UTF16(kNoImageDisplayName));
+	};
+
+	auto subimage = p.addEnumerationItem(ITEM_SUBIMAGE, "SubImage(Picture 2)");
+	addSubImageValues(subimage);
+
+	auto subimage3 = p.addEnumerationItem(ITEM_SUBIMAGE_PICTURE3, "SubImage(Picture 3)");
+	addSubImageValues(subimage3);
+
+	auto subimage4 = p.addEnumerationItem(ITEM_SUBIMAGE_PICTURE4, "SubImage(Picture 4)");
+	addSubImageValues(subimage4);
 	// p.addIntegerItem(ITEM_STEPS, "Steps", 20, 1, 60);
 	// p.addDecimalItem(ITEM_STRENGTH, "Strength", 0.5, 0.0, 1.0);
 	// p.addDecimalItem(ITEM_CONTROL_STRENGTH, "Control Strength", 8.0, 1.0, 20.0);
@@ -833,11 +911,29 @@ static bool SyncProperty(FilterPlugIn::Int itemKey, FilterPlugIn::PropertyObject
 	case ITEM_SUBIMAGE:
 	{
 		auto subimage = property.getEnumeration(ITEM_SUBIMAGE);
-		if (info.subimage_index != subimage) {
-			info.subimage_index = subimage;
-			// return property.sync(ITEM_SUBIMAGE, g_params.input_subimage_filename);  これがあるとエラーになるのでコメント
+		if (info.subimage_indices[0] != subimage) {
+			info.subimage_indices[0] = subimage;
 			return true;
 		}
+		break;
+	}
+	case ITEM_SUBIMAGE_PICTURE3:
+	{
+		auto subimage = property.getEnumeration(ITEM_SUBIMAGE_PICTURE3);
+		if (info.subimage_indices[1] != subimage) {
+			info.subimage_indices[1] = subimage;
+			return true;
+		}
+		break;
+	}
+	case ITEM_SUBIMAGE_PICTURE4:
+	{
+		auto subimage = property.getEnumeration(ITEM_SUBIMAGE_PICTURE4);
+		if (info.subimage_indices[2] != subimage) {
+			info.subimage_indices[2] = subimage;
+			return true;
+		}
+		break;
 	}
 	case ITEM_PROMPT:
 		return property.sync(ITEM_PROMPT, g_params.prompt);
@@ -884,6 +980,12 @@ static bool InitializeFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* da
 
 	// SubImageの初期化
 	g_SubImages = GetSubImages();
+	const int noImageIndex = static_cast<int>(g_SubImages.size());
+
+	info->subimage_indices[0] = g_SubImages.empty() ? noImageIndex : 0;
+	for (size_t i = 1; i < kSubImageDropdownCount; ++i) {
+		info->subimage_indices[i] = noImageIndex;
+	}
 
 	// フィルタカテゴリ名とフィルタ名の設定
 	initialize.SetCategoryName("ComfyUI API", 'x');
@@ -901,12 +1003,14 @@ static bool InitializeFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* da
 	// プロパティの作成
 	auto property = FilterPlugIn::Property(server);
 	InitProperty(property);
+	property.setEnumeration(ITEM_SUBIMAGE, info->subimage_indices[0]);
+	property.setEnumeration(ITEM_SUBIMAGE_PICTURE3, info->subimage_indices[1]);
+	property.setEnumeration(ITEM_SUBIMAGE_PICTURE4, info->subimage_indices[2]);
 	initialize.SetProperty(property);
 
 	// 初回は0番設定に
 	SwitchToSetting(0, property, true);
 	info->setting = 0;
-	info->subimage_index = 0;
 
 	//	プロパティコールバック
 	initialize.SetPropertyCallBack(FilterPropertyCallBack, *data);
@@ -1204,8 +1308,8 @@ FilterPlugIn::Block read24BitBmpBlock(const std::string& filename) {
 
 	// print(convert_address_to_hex_string(finalData.get()).c_str());
     
-    print((filename + "を読み込みました。 論理RowBytes: " + std::to_string( logicalRowBytes) 
-	    + " (ファイル内: " + std::to_string(actualRowBytes) + ")\n").c_str());
+    print(("read: " + filename + ", RowBytes: " + std::to_string( logicalRowBytes) 
+	    + " (real file : " + std::to_string(actualRowBytes) + ")\n").c_str());
 	
 	file.close();
     return block;
@@ -1235,11 +1339,25 @@ static bool RunFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data) {
 	// 前回の設定で開く
 	FilterPlugIn::Property property(server, run.GetProperty());
 	SwitchToSetting(info->setting, property, true);
-	if (g_SubImages.size() > info->subimage_index) {
-		g_params.input_subimage_filename = g_SubImages[info->subimage_index];
-	} else if (g_SubImages.size() > 0) {
-		g_params.input_subimage_filename = g_SubImages[0];
-	}
+	auto refreshSelectedSubImages = [&]() {
+		for (size_t i = 0; i < kSubImageDropdownCount; ++i) {
+			const int selection = info->subimage_indices[i];
+			if (IsNoImageSelection(selection)) {
+				g_params.input_subimage_filenames[i].clear();
+			} else {
+				g_params.input_subimage_filenames[i] = g_SubImages[selection];
+			}
+			std::string logMessage = "subimage_selection[" + std::to_string(i) + "] : ";
+			logMessage += g_params.input_subimage_filenames[i].empty() ? kNoImageDisplayName : g_params.input_subimage_filenames[i];
+
+			print(logMessage.c_str());
+		}
+
+		property.setEnumeration(ITEM_SUBIMAGE, info->subimage_indices[0]);
+		property.setEnumeration(ITEM_SUBIMAGE_PICTURE3, info->subimage_indices[1]);
+		property.setEnumeration(ITEM_SUBIMAGE_PICTURE4, info->subimage_indices[2]);
+	};
+	refreshSelectedSubImages();
 
 	// 選択範囲の取得
 	const auto selectAreaRect = run.GetSelectArea();
@@ -1263,11 +1381,9 @@ static bool RunFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data) {
 	// メイン処理
 	while (true) {
 		if (run.Process(FilterPlugIn::Run::States::Start) == FilterPlugIn::Run::Results::Exit) break;
+		refreshSelectedSubImages();
 
 		// パラメータの取得
-		print(("info->subimage_index : " + std::to_string(info->subimage_index)).c_str());
-		g_params.input_subimage_filename = g_SubImages[info->subimage_index];
-
 		// 入力画像の取得
 		ImageBuffer inputImageBuffer;
 		inputImageBuffer.allocate(width, height);
@@ -1288,7 +1404,7 @@ static bool RunFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data) {
 		}
 		std::string datetimenow = getDateString();
 		std::string inputImageFileName = "temp_img_req_" + datetimenow;
-		std::string inputSubImageFileName = "temp_subimg_req_" + datetimenow;
+		std::array<std::string, kSubImageDropdownCount> subImageUploadFileNames{};
 		std::string tempImageFileName = "temp_img_req";
 		write_bmp_file(inputImageBuffer, g_BasePath + tempImageFileName +".bmp");
 
@@ -1299,7 +1415,20 @@ static bool RunFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data) {
         std::string url = g_ServerAddress + "/upload/image";
 		http_post_image_to_file(url, g_BasePath + tempImageFileName + ".png", inputImageFileName + ".png", "temp_json_preimage_res.json");
 
-		http_post_image_to_file(url, g_BasePath + "SubImage\\" + g_params.input_subimage_filename, inputSubImageFileName + ".png", "temp_json_presubimage_res.json");
+		for (size_t i = 0; i < kSubImageDropdownCount; ++i) {
+			const auto& selectedSubImage = g_params.input_subimage_filenames[i];
+			if (!selectedSubImage.empty()) {
+				const std::string uploadFileName = kSubImageUploadPrefixes[i] + datetimenow + ".png";
+				const std::string localPath = g_BasePath + "SubImage\\" + selectedSubImage;
+				const std::string responseFile = "temp_json_presubimage_res_" + std::to_string(i) + ".json";
+				print(("pre-post subimage[" + std::to_string(i) + "]: " + localPath).c_str());
+				http_post_image_to_file(url, localPath, uploadFileName, responseFile);
+				subImageUploadFileNames[i] = uploadFileName;
+			} else {
+				subImageUploadFileNames[i] = "empty.png";
+				print(("skip pre-post subimage[" + std::to_string(i) + "]: " + kNoImageDisplayName).c_str());
+			}
+		}
 
 		// 生成
 		// JSONファイルを読み込む
@@ -1318,12 +1447,19 @@ static bool RunFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data) {
 		prompt_modified = replace_all(prompt_modified, MARKER_NPROMPT, g_params.negative_prompt);
 		print("Replace input image path");
 		prompt_modified = replace_all(prompt_modified, MARKER_INPUT_IMAGE, inputImageFileName + ".png");
-		prompt_modified = replace_all(prompt_modified, MARKER_SUBINPUT_IMAGE, inputSubImageFileName + ".png");
+		for (size_t i = 0; i < kSubImageDropdownCount; ++i) {
+			prompt_modified = replace_all(prompt_modified, kSubImageMarkers[i], subImageUploadFileNames[i]);
+		}
 		
 		print("Replace finished.");
 
 		// 3. 変更したワークフローをキューに送信
 		std::string temp_image_path = queue_prompt(prompt_modified);
+
+		if (temp_image_path == "") {
+    		print("Generate error.");
+			return false;
+		} 
 
 		call_png_to_bmp();
 
