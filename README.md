@@ -20,7 +20,8 @@ ComfyUIでできない画像生成は、本プラグインを導入しても実�
 
 * ComfyUIはオープンソースソフトウェアです。
 * 「Gemini」は、Google LLCの登録商標です。「Nano-Banana」もGoogleにて商標登録されている可能性があります。
-* 「Qwen」は中国のアリババ社によって開発された生成AIモデルです。商標登録されている可能性があります。
+* 「Seedream」は、中国のByteDanceによって開発された生成AIモデルです。商標登録されている可能性があります。
+* 「Qwen」は、中国のアリババ社によって開発された生成AIモデルです。商標登録されている可能性があります。
 * 「FLUX（※FLUX.1）」は、Black Forest Labsによって開発された生成AIモデルです。商標登録されている可能性があります。
 * 生成された画像の利用については、それぞれの生成AIのモデルの規約に従ってください。
 * 「CLIP STUDIO」は株式会社セルシスの商標または登録商標です。
@@ -57,6 +58,7 @@ ComfyUIでできない画像生成は、本プラグインを導入しても実�
 
 temp_img_req_yyyyMMddhhmmss.png  ※ポーズ指定用の画像。3Dのポーズ画像など。<br>
 temp_subimg_req_yyyyMMddhhmmss.png  ※キャラクター指定用の画像。自分で描いたキャラクターのAポーズの画像など。<br>
+empty.png  ※サブ画像を送信しないテンプレートのプレースホルダー。リリースに同梱されている `input/empty.png` をコピーしてください。<br>
 <br>
 
 ### ComfyUIの動作確認
@@ -64,6 +66,8 @@ temp_subimg_req_yyyyMMddhhmmss.png  ※キャラクター指定用の画像。�
 examplesフォルダにある以下のファイルをComfyUIの画面にドラッグ＆ドロップして開き、動作することを確認してください。
 
 NanoBananaサンプル：ccp_api_google_gemini_image.json<br>
+NanoBanana 4inputsサンプル：ccp_api_google_gemini_image_4inputs.json<br>
+SeeDream4サンプル：ccp_api_bytedance_seedream4.json<br>
 QwenImageサンプル：ccp_qwen_image_edit_2509.json<br>
 FluxKontextDevサンプル：ccp_flux_kontext_dev.json<br>
 
@@ -92,6 +96,20 @@ ccp_api_google_gemini_image.json の戻し方
 * 右の入力画像は「temp_subimg_req_yyyyMMddhhmmss.png」を指定する。
 * プロンプトは「###input1###」を指定する。
 
+ccp_api_google_gemini_image_4inputs.json の戻し方
+* Picture 1 の入力画像は「temp_img_req_yyyyMMddhhmmss.png」を指定する。
+* Picture 2 の入力画像は「temp_subimg_req_yyyyMMddhhmmss.png」を指定する。
+* Picture 3 の入力画像は「temp_subimg2_req_yyyyMMddhhmmss.png」を指定する。
+* Picture 4 の入力画像は「temp_subimg3_req_yyyyMMddhhmmss.png」を指定する。
+* プロンプトは「###input1###」を指定する。
+
+ccp_api_bytedance_seedream4.json の戻し方
+* Picture 1 の入力画像は「temp_img_req_yyyyMMddhhmmss.png」を指定する。
+* Picture 2 の入力画像は「temp_subimg_req_yyyyMMddhhmmss.png」を指定する。
+* Picture 3 の入力画像は「temp_subimg2_req_yyyyMMddhhmmss.png」を指定する。
+* Picture 4 の入力画像は「temp_subimg3_req_yyyyMMddhhmmss.png」を指定する。
+* プロンプトは「###input1###」を指定する。
+
 ccp_qwen_image_edit_2509.json の戻し方
 * 左の入力画像は「temp_img_req_yyyyMMddhhmmss.png」を指定する。
 * 右の入力画像は「temp_subimg_req_yyyyMMddhhmmss.png」を指定する。
@@ -116,15 +134,17 @@ ccp_flux_kontext_dev.json の戻し方
 ファイルエクスプローラーのアドレスバーに入力すると移動できます。
 以降、「ComfyUIPluginのフォルダ」と記載した場合はこのパスを開いてください。
 
-### ComfyUIPluginのiniファイルの修正
+### ComfyUIPluginの設定ファイル（UserSetting.ini）の修正
 
-ComfyUIPluginのフォルダの ComfyUIPlugin.ini ファイルを開き、以下を修正します。
+ComfyUIPluginのフォルダの `UserSetting.ini` を開き、`[COMMON]` セクションのコメントを外して以下を設定します。（行頭の `;` を削除してください）
 
     server_address = "http://127.0.0.1:8188"
     api_key = "comfyui-xxxx"
 
 http://127.0.0.1:8188 の部分は、ComfyUIを起動して開いたブラウザのURLを入力してください。
 comfyui-xxxx の部分は、先ほど入手したAPIキーを入力してください。
+
+`ComfyUIPlugin.ini` は配布時の既定値が記載されており、アップデート時に上書きされます。個別の調整やプリセット追加は `UserSetting.ini` に記載してください。
 
 ### Pythonパスの設定
 
@@ -186,16 +206,17 @@ NanoBananaの場合と同じ操作で、Setting: にて「FLUX Kontext Dev」を
 キャンバスを矩形選択した場合、選択した範囲のみ生成AIに渡します。
 キャンバスが大きい場合、全体を渡すと画像生成に大きく時間がかかったり、クレジットの消費が増えるため、適宜選択して利用してください。
 
-画像の２個目は、SubImageフォルダに格納したPNGファイルです。
-フィルタ画面の SubImage: で切り替えます。
-Nano-Banana、Qwen Image Edit 2509のワークフローでは、画像の１個目と２個目を渡します。
-FLUX Kontext Devのワークフローでは、画像の１個目のみ渡します。
+画像の２～４個目は、ComfyUIPluginフォルダの SubImage フォルダに格納したPNGファイルです。
+フィルタ画面の SubImage(Picture 2/3/4) で切り替えます。`(no image)` を選ぶと該当のサブ画像を送信せずにワークフローを実行します（テンプレート内では `empty.png` を参照します）。
+`Google Gemini Image(Nano-Banana)` や `Qwen Image Edit 2509` では主に Picture 2 を使用します。
+`Google Gemini Image(Nano-Banana) 4inputs`・`SeeDream4 4inputs` では Picture 2～4 を活用してください。
+`FLUX Kontext Dev` のワークフローでは、画像の１個目のみ渡します。
 
 プロンプトは、フィルタのPromptの文章を渡します。
-尚、Setting: を切り替えた場合、画面のプロンプトは変わりませんが、ComfyUIPlugin.iniのpromptの値が実際には渡されています。
+尚、Setting: を切り替えた場合、画面のプロンプト表示は変わりませんが、内部では `ComfyUIPlugin.ini` の既定値に `UserSetting.ini` の上書きを適用した内容が送信されます。
 （CLIP STUDIO PAINT EXのフィルタの制限で、プログラム側から表示の更新ができません）
-プロンプトを修正する場合は、画面上で文章を修正するか、ComfyUIPlugin.ini のpromptを修正してください。
-（ComfyUIPlugin.iniの修正後は、CLIP STUDIO PAINT EXは再起動してください）
+プロンプトを修正する場合は、画面上で文章を修正するか、`UserSetting.ini` の該当セクションで `prompt`／`negative_prompt` を設定してください。
+（UserSetting.iniの修正後は、CLIP STUDIO PAINT EXを再起動してください）
 
 ## FAQ
 
@@ -240,7 +261,8 @@ Windowsでのみ動作確認を行っております。Macは現状動作しま�
 
 ・SubImageフォルダの画像は必須ですか？
 
-本プラグインのサンプルでは、NanoBanana、QwenImageEdit2509では必須です。
+本プラグインのサンプルでは、NanoBanana、QwenImageEdit2509ではPicture 2が必須です。`Google Gemini Image(Nano-Banana) 4inputs` や `SeeDream4 4inputs` では Picture 2～4 を使います。
+一部のワークフローでは `(no image)` を選んでスキップすることもできます。
 
 ・SubImageフォルダに画像を置いてもフィルタの画面に表示されません。
 
@@ -259,13 +281,13 @@ Windowsでのみ動作確認を行っております。Macは現状動作しま�
 
 画像の生成結果は、ComfyUIのoutputフォルダの「CLIPSTUDIO_ComfyUI_PLUGIN」に格納されているのでそちらを探してみてください。
 生成に90秒以上かかった場合、CLIP STUDIOの画面に出力されません。
-どうしても生成に90秒以上かかる場合は、ComfyUIPlugin.ini のgetimage_retry_max_count、getimage_retry_wait_secondsを増やしてみてください。
-ComfyUIPlugin.ini の修正後は、CLIP STUDIO PAINT EX を一度閉じてからもう一度開いてください。
+どうしても生成に90秒以上かかる場合は、UserSetting.ini の getimage_retry_max_count、getimage_retry_wait_seconds を増やしてみてください。
+UserSetting.ini の修正後は、CLIP STUDIO PAINT EX を一度閉じてからもう一度開いてください。
 
 ・プロンプトの動きがいまいちおかしい気がします。
 
 CLIP STUDIO PAINT EX の仕様で、Setting: を変えても画面表示はPromptが更新されません。
-内部では ComfyUIPlugin.ini のpromptの値が設定されています。
+内部では `ComfyUIPlugin.ini` の既定値、または、 `UserSetting.ini` の上書きを適用した prompt の値が設定されています。
 どのような内容がComfyUIに渡されているかは、ComfyUIPluginのフォルダの temp_xxx.xxx ファイルをのぞいてみてください。
 
 ・ComfyUIのinputフォルダの画像増えまくってない？
@@ -288,19 +310,19 @@ ComfyUIPluginのフォルダの「debuglog.txt」「debuglog_py.txt」を見て�
 問題ありません。
 以下のルールは守ってください。
 
-    キャンバスの画像をINPUTにする場合は、ファイル名は「temp_img_req_yyyyMMddhhmmss.png」にする。
-    SubImageの画像をINPUTにする場合は、ファイル名は「temp_subimg_req_yyyyMMddhhmmss.png」にする。
-    Promptの文章を渡す場合、###input1###にする。
-    Negative Promptの文章を渡す場合、###input2###にする。
-    出力画像のプレフィックスは「CLIPSTUDIO_ComfyUI_PLUGIN\CCPImage」にする。生成されるファイル名が「CCPImage_xxxx.png」になるようにする。
-    他の画像をインプットとする場合、名前が「CCPImage」にならないようにする。
-    上記を満たしたjsonファイルを「エクスポート（API）」で保存し、ComfyUIPluginのフォルダに格納する。    
+- キャンバスの画像をINPUTにする場合は、ファイル名は「temp_img_req_yyyyMMddhhmmss.png」にする。
+- SubImageの画像をINPUTにする場合は、Picture 2 を「temp_subimg_req_yyyyMMddhhmmss.png」、Picture 3 を「temp_subimg2_req_yyyyMMddhhmmss.png」、Picture 4 を「temp_subimg3_req_yyyyMMddhhmmss.png」にする。
+- Promptの文章を渡す場合、###input1###にする。
+- Negative Promptの文章を渡す場合、###input2###にする。
+- 出力画像のプレフィックスは「CLIPSTUDIO_ComfyUI_PLUGIN\CCPImage」にする。生成されるファイル名が「CCPImage_xxxx.png」になるようにする。
+- 他の画像をインプットとする場合、名前が「CCPImage」にならないようにする。
+- 上記を満たしたjsonファイルを「エクスポート（API）」で保存し、ComfyUIPluginのフォルダに格納する。    
 
 ・自分で作ったワークフローは使える？
 
 利用できます。
 ワークフローは前述のルールを守ってください。
-ComfyUIPluginのフォルダの ComfyUIPlugin.ini に以下のようにセクションを追加してください。
+ComfyUIPluginのフォルダの UserSetting.ini に以下のようにセクションを追加してください。
 「エクスポート（API）」したファイルはComfyUIPluginのフォルダに格納してください。
 
     [Flux Kontext dev]
@@ -331,8 +353,10 @@ bmpとpngの変換にpythonを使っており、その実行に.batを経由し�
 
 ## 補足情報
 
-### ComfyUIPlugin.ini の設定値について
+### ComfyUIPlugin.ini / UserSetting.ini の設定値について
 
+- `ComfyUIPlugin.ini` は配布時の既定値が記載されています。アップデート時に上書きされるため、直接修正しないでください。
+- `UserSetting.ini` に同じキーを記載すると、既定値を上書きできます。セクションの追加もこちらで行ってください。
 - server_address ： ComfyUIのAPIのcurl実行で利用
 - api_key ： NanoBananaなど有料のAPIを呼び出す場合に必要なログイン用
 - getimage_retry_max_count ： 画像が生成されるまでポーリングする際のリトライ回数

@@ -11,6 +11,7 @@
 #include <cstdlib> // system関数のために必要
 #include <sstream> // ファイル読み込みのために必要
 #include <array>
+#include <algorithm>
 #include <wchar.h> // ワイド文字用（日本語フォルダ用を想定したがなくても良いかも）
 #include <chrono>  // sleep_for
 #include <thread>  // sleep_for
@@ -172,6 +173,9 @@ std::vector<std::string> g_Settings;
 
 /// サブイメージリスト（サブウィンドウの次のドロップダウン）
 std::vector<std::string> g_SubImages;
+
+/// ユーザー設定ファイルの有無
+bool g_HasUserSettingIni = false;
 
 /// デバッグ出力の開始
 void InitDebugOutput(const std::string& basePath) {
@@ -741,10 +745,20 @@ static std::string GetIniPath()
 	return g_BasePath + "ComfyUIPlugin.ini";
 }
 
+/// @brief ユーザー設定ファイルのパス
+/// @return ユーザーiniファイルのフルパスを返す（存在しない場合もそのまま）
+static std::string GetUserIniPath()
+{
+	return g_BasePath + "UserSetting.ini";
+}
+
 /// @brief 設定ファイルのセクション
 /// @return COMMON以外のセクションを返す
-static std::vector<std::string> GetIniSections(const std::string& iniPath)
+static std::vector<std::string> GetIniSectionsFromFile(const std::string& iniPath)
 {
+		if (iniPath.empty()) {
+			return {};
+		}
 		char sections[4096];
 		GetPrivateProfileSectionNamesA(sections, sizeof(sections), iniPath.c_str());
 		char *section = sections;
@@ -756,6 +770,25 @@ static std::vector<std::string> GetIniSections(const std::string& iniPath)
 			section += strlen(section) + 1;
 		}
 		return result;
+}
+
+/// @brief 複数iniファイルのセクションを結合（ユーザー設定を優先）
+/// @return COMMON以外のセクションを、ユーザー設定→デフォルトの順に返す
+static std::vector<std::string> GetCombinedIniSections(const std::string& defaultIniPath, const std::string& userIniPath)
+{
+	std::vector<std::string> result;
+	auto appendUnique = [&](const std::vector<std::string>& sections) {
+		for (const auto& section : sections) {
+			if (std::find(result.begin(), result.end(), section) == result.end()) {
+				result.push_back(section);
+			}
+		}
+	};
+	if (!userIniPath.empty() && std::filesystem::exists(userIniPath)) {
+		appendUnique(GetIniSectionsFromFile(userIniPath));
+	}
+	appendUnique(GetIniSectionsFromFile(defaultIniPath));
+	return result;
 }
 
 // SubImageフォルダ内の.pngファイルのリストを返却する。
@@ -837,6 +870,9 @@ static void InitProperty(FilterPlugIn::Property& p) {
 
 // iniファイルから文字列読み込み
 std::string iniGetString(const std::string& filePath, const std::string& section, const std::string& key){
+	if (filePath.empty()) {
+		return "";
+	}
 	char buf[MAX_PATH] = {};
 	GetPrivateProfileStringA(section.c_str(), key.c_str(), "", buf, MAX_PATH, filePath.c_str());
 	auto text = std::string(buf);
@@ -856,6 +892,35 @@ void ini(const std::string& filePath, const std::string& section, const std::str
 	if (!s.empty()) val = s;
 }
 
+// iniファイル読み込み：デフォルト→ユーザーの順で上書き
+static void iniWithOverride(const std::string& defaultPath, const std::string& userPath, const std::string& section, const std::string& key, std::string& val) {
+	auto defaultValue = iniGetString(defaultPath, section, key);
+	if (!defaultValue.empty()) {
+		val = defaultValue;
+	}
+	if (!userPath.empty()) {
+		auto userValue = iniGetString(userPath, section, key);
+		if (!userValue.empty()) {
+			val = userValue;
+		}
+	}
+}
+
+// iniファイル読み込み：ユーザー→デフォルトの順で取得
+static void iniUserPreferred(const std::string& defaultPath, const std::string& userPath, const std::string& section, const std::string& key, std::string& val) {
+	if (!userPath.empty()) {
+		auto userValue = iniGetString(userPath, section, key);
+		if (!userValue.empty()) {
+			val = userValue;
+			return;
+		}
+	}
+	auto defaultValue = iniGetString(defaultPath, section, key);
+	if (!defaultValue.empty()) {
+		val = defaultValue;
+	}
+}
+
 /// @brief 設定の切り替え
 /// @param index スイッチ先の設定インデックス
 /// @param data フィルター情報
@@ -866,10 +931,15 @@ static void SwitchToSetting(int index, FilterPlugIn::Property& property, bool is
 
 	// コンフィグのロード
 	auto iniPath = GetIniPath();
+	const auto userIniPath = g_HasUserSettingIni ? GetUserIniPath() : "";
+
+	g_params.template_workflow_filename.clear();
+	g_params.prompt.clear();
+	g_params.negative_prompt.clear();
 	
-    ini(iniPath, setting, "template_workflow_filename", g_params.template_workflow_filename);
-    ini(iniPath, setting, "prompt", g_params.prompt);
-    ini(iniPath, setting, "negative_prompt", g_params.negative_prompt);
+    iniUserPreferred(iniPath, userIniPath, setting, "template_workflow_filename", g_params.template_workflow_filename);
+    iniUserPreferred(iniPath, userIniPath, setting, "prompt", g_params.prompt);
+    iniUserPreferred(iniPath, userIniPath, setting, "negative_prompt", g_params.negative_prompt);
 
 	print("SwitchToSetting:");
 	print(setting.c_str());
@@ -962,21 +1032,25 @@ static bool InitializeFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* da
 
 	// 初期設定の読み込み
 	std::string iniPath = GetIniPath();
-	ini(iniPath, "COMMON", "server_address", g_ServerAddress);
+	const std::string userIniPath = GetUserIniPath();
+	g_HasUserSettingIni = std::filesystem::exists(userIniPath);
+	const std::string userIniOptionalPath = g_HasUserSettingIni ? userIniPath : "";
+
+	iniWithOverride(iniPath, userIniOptionalPath, "COMMON", "server_address", g_ServerAddress);
 	if (g_ServerAddress.empty()) {
 		g_ServerAddress = SERVER_ADDRESS_DEFAULT;
 	}
-	ini(iniPath, "COMMON", "api_key", g_APIKey);
+	iniWithOverride(iniPath, userIniOptionalPath, "COMMON", "api_key", g_APIKey);
 	std::string retryMaxCount;
-	ini(iniPath, "COMMON", "getimage_retry_max_count", retryMaxCount);
+	iniWithOverride(iniPath, userIniOptionalPath, "COMMON", "getimage_retry_max_count", retryMaxCount);
 	std::string retryWaitSeconds;
-	ini(iniPath, "COMMON", "getimage_retry_wait_seconds", retryWaitSeconds);
+	iniWithOverride(iniPath, userIniOptionalPath, "COMMON", "getimage_retry_wait_seconds", retryWaitSeconds);
 
 	g_RetryMaxCount = std::stoi(retryMaxCount);
 	g_RetryWaitSeconds = std::stoi(retryWaitSeconds);
 
 	// 設定リストの初期化
-	g_Settings = GetIniSections(iniPath);
+	g_Settings = GetCombinedIniSections(iniPath, userIniOptionalPath);
 
 	// SubImageの初期化
 	g_SubImages = GetSubImages();
@@ -1009,8 +1083,13 @@ static bool InitializeFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* da
 	initialize.SetProperty(property);
 
 	// 初回は0番設定に
-	SwitchToSetting(0, property, true);
-	info->setting = 0;
+	if (!g_Settings.empty()) {
+		SwitchToSetting(0, property, true);
+		info->setting = 0;
+	} else {
+		print("iniファイルに有効な設定セクションが見つかりませんでした。");
+		info->setting = -1;
+	}
 
 	//	プロパティコールバック
 	initialize.SetPropertyCallBack(FilterPropertyCallBack, *data);

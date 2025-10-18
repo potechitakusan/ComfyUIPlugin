@@ -32,6 +32,7 @@ copy /Y ComfyUIPlugin.cpm %APP_DIR%
 
 echo 設定ファイルをコピー...
 copy /Y ComfyUIPlugin.ini %APP_DIR%
+if not exist %APP_DIR%UserSetting.ini copy UserSetting.ini %APP_DIR%
 
 echo Pythonスクリプトをコピー...
 copy /Y bmp_to_png.bat %APP_DIR%
