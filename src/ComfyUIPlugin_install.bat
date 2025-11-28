@@ -29,10 +29,10 @@ mkdir %APP_DIR%
 
 echo プラグインをコピー...
 copy /Y ComfyUIPlugin.cpm %APP_DIR%
+copy /Y ComfyUINanoBananaPlugin.cpm %APP_DIR%
 
 echo 設定ファイルをコピー...
 copy /Y ComfyUIPlugin.ini %APP_DIR%
-if not exist %APP_DIR%UserSetting.ini copy UserSetting.ini %APP_DIR%
 
 echo Pythonスクリプトをコピー...
 copy /Y bmp_to_png.bat %APP_DIR%
@@ -42,6 +42,13 @@ copy /Y png_to_bmp.py %APP_DIR%
 mkdir %APP_DIR%\SubImage
 copy /Y SubImage %APP_DIR%\SubImage
 
+if exist "%APP_DIR%UserSetting.ini" (
+    echo UserSetting.ini は既に存在します。
+) else (
+    echo UserSetting.ini が存在しません。コピーします…
+    copy /Y UserSetting.ini "%APP_DIR%UserSetting.ini"
+)
+	
 echo ------------------------------------------------------------
 echo インストール完了
 echo ------------------------------------------------------------

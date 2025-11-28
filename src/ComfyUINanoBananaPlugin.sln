@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.33627.172
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{cf5d7a2a-82a0-8463-f463-4b62079a2d70}") = "ComfyUINanoBananaPlugin", "ComfyUINanoBananaPlugin.vcxproj", "{0e785517-85d4-5fb9-51f0-fb6ce216cee4}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0e785517-85d4-5fb9-51f0-fb6ce216cee4}.Debug|x64.ActiveCfg = Debug|x64
+		{0e785517-85d4-5fb9-51f0-fb6ce216cee4}.Debug|x64.Build.0 = Debug|x64
+		{0e785517-85d4-5fb9-51f0-fb6ce216cee4}.Debug|x86.ActiveCfg = Debug|Win32
+		{0e785517-85d4-5fb9-51f0-fb6ce216cee4}.Debug|x86.Build.0 = Debug|Win32
+		{0e785517-85d4-5fb9-51f0-fb6ce216cee4}.Release|x64.ActiveCfg = Release|x64
+		{0e785517-85d4-5fb9-51f0-fb6ce216cee4}.Release|x64.Build.0 = Release|x64
+		{0e785517-85d4-5fb9-51f0-fb6ce216cee4}.Release|x86.ActiveCfg = Release|Win32
+		{0e785517-85d4-5fb9-51f0-fb6ce216cee4}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {c19e4fa1-56a9-e43a-4dcd-99692b01faad}
+	EndGlobalSection
+EndGlobal

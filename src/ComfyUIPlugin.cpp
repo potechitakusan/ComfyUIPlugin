@@ -21,6 +21,10 @@
 
 using namespace ComfyUIPlugin;
 
+#ifndef COMFYUI_INCLUDE_DEFAULT_ENTRYPOINT
+#define COMFYUI_INCLUDE_DEFAULT_ENTRYPOINT 1
+#endif
+
 
 typedef uint8_t byte_t;
 typedef byte_t* pbyte_t;
@@ -35,16 +39,37 @@ const std::string SERVER_ADDRESS_DEFAULT = "http://127.0.0.1:8188";
 
 // 置換対象のマーカー 入力画像
 const std::string MARKER_INPUT_IMAGE = "temp_img_req_yyyyMMddhhmmss.png"; 
-constexpr size_t kSubImageDropdownCount = 3;
+
+// constexpr size_t kSubImageDropdownCount = 3;
+// const std::array<std::string, kSubImageDropdownCount> kSubImageMarkers = {
+// 	"temp_subimg_req_yyyyMMddhhmmss.png",
+// 	"temp_subimg2_req_yyyyMMddhhmmss.png",
+// 	"temp_subimg3_req_yyyyMMddhhmmss.png"
+// };
+// const std::array<std::string, kSubImageDropdownCount> kSubImageUploadPrefixes = {
+// 	"temp_subimg_req_",
+// 	"temp_subimg2_req_",
+// 	"temp_subimg3_req_"
+// };
+
+constexpr size_t kSubImageDropdownCount = 7;
 const std::array<std::string, kSubImageDropdownCount> kSubImageMarkers = {
 	"temp_subimg_req_yyyyMMddhhmmss.png",
 	"temp_subimg2_req_yyyyMMddhhmmss.png",
-	"temp_subimg3_req_yyyyMMddhhmmss.png"
+	"temp_subimg3_req_yyyyMMddhhmmss.png",
+	"temp_subimg4_req_yyyyMMddhhmmss.png",
+	"temp_subimg5_req_yyyyMMddhhmmss.png",
+	"temp_subimg6_req_yyyyMMddhhmmss.png",
+	"temp_subimg7_req_yyyyMMddhhmmss.png"
 };
 const std::array<std::string, kSubImageDropdownCount> kSubImageUploadPrefixes = {
 	"temp_subimg_req_",
 	"temp_subimg2_req_",
-	"temp_subimg3_req_"
+	"temp_subimg3_req_",
+	"temp_subimg4_req_",
+	"temp_subimg5_req_",
+	"temp_subimg6_req_",
+	"temp_subimg7_req_"
 };
 
 // 置換対象のマーカー プロンプト
@@ -703,6 +728,10 @@ enum PropertyKey {
 	ITEM_SUBIMAGE,
 	ITEM_SUBIMAGE_PICTURE3,
 	ITEM_SUBIMAGE_PICTURE4,
+	ITEM_SUBIMAGE_PICTURE5,
+	ITEM_SUBIMAGE_PICTURE6,
+	ITEM_SUBIMAGE_PICTURE7,
+	ITEM_SUBIMAGE_PICTURE8,
 	ITEM_PROMPT,
 	ITEM_NPROMPT,
 };
@@ -710,10 +739,10 @@ enum PropertyKey {
 /// プラグイン初期化
 /// @return 正常終了ならtrue
 /// @note ここでfalse返すとクリスタのバージョン上げろって言われる
-static bool InitializeModule(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data) {
+bool InitializeModule(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data, std::string id) {
 	// 初期化
 	FilterPlugIn::ModuleInitialize initialize(server);
-	if (!initialize.Initialize(kModuleIDString)) return false;
+    if (!initialize.Initialize(id)) return false;
 
 	// 情報インスタンス
 	auto info = new FilterInfo;
@@ -726,7 +755,7 @@ static bool InitializeModule(FilterPlugIn::Server* server, FilterPlugIn::Ptr* da
 
 /// プラグイン終了
 /// @return 正常終了ならtrue
-static bool TerminateModule(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data) {
+bool TerminateModule(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data) {
 	// 情報インスタンス解放
 	if (*data) {
 		delete static_cast<FilterInfo*>(*data);
@@ -754,7 +783,7 @@ static std::string GetUserIniPath()
 
 /// @brief 設定ファイルのセクション
 /// @return COMMON以外のセクションを返す
-static std::vector<std::string> GetIniSectionsFromFile(const std::string& iniPath)
+static std::vector<std::string> GetIniSectionsFromFile(const std::string& iniPath, std::string mode)
 {
 		if (iniPath.empty()) {
 			return {};
@@ -766,7 +795,14 @@ static std::vector<std::string> GetIniSectionsFromFile(const std::string& iniPat
 		while (*section != NULL)
 		{
 			std::string name = section;
-			if (name != "COMMON") result.push_back(name);
+			if (name != "COMMON") {
+				if (mode != "") {
+					print(("mode :" + mode + ", " + name).c_str());
+					if (name.find(mode) != std::string::npos) result.push_back(name);
+				} else {
+					result.push_back(name);
+				}
+			}
 			section += strlen(section) + 1;
 		}
 		return result;
@@ -774,7 +810,7 @@ static std::vector<std::string> GetIniSectionsFromFile(const std::string& iniPat
 
 /// @brief 複数iniファイルのセクションを結合（ユーザー設定を優先）
 /// @return COMMON以外のセクションを、ユーザー設定→デフォルトの順に返す
-static std::vector<std::string> GetCombinedIniSections(const std::string& defaultIniPath, const std::string& userIniPath)
+static std::vector<std::string> GetCombinedIniSections(const std::string& defaultIniPath, const std::string& userIniPath, std::string mode)
 {
 	std::vector<std::string> result;
 	auto appendUnique = [&](const std::vector<std::string>& sections) {
@@ -785,9 +821,9 @@ static std::vector<std::string> GetCombinedIniSections(const std::string& defaul
 		}
 	};
 	if (!userIniPath.empty() && std::filesystem::exists(userIniPath)) {
-		appendUnique(GetIniSectionsFromFile(userIniPath));
+		appendUnique(GetIniSectionsFromFile(userIniPath, mode));
 	}
-	appendUnique(GetIniSectionsFromFile(defaultIniPath));
+	appendUnique(GetIniSectionsFromFile(defaultIniPath, mode));
 	return result;
 }
 
@@ -838,11 +874,16 @@ static std::string ResolveSubImageFilename(int selection) {
 
 
 /// プロパティの初期化
-static void InitProperty(FilterPlugIn::Property& p) {
+static void InitProperty(FilterPlugIn::Property& p, std::string mode) {
 	auto setting = p.addEnumerationItem(ITEM_SETTING, "Setting");
 	for(int i = 0; i < g_Settings.size(); ++i) {
 		setting.addValue(i, ShiftJIS_to_UTF16(g_Settings[i])); // UI側はUNICODEが良い
 	}
+
+	p.addStringItem(ITEM_PROMPT, "Prompt", 800);
+	if (mode != "Banana") {
+		p.addStringItem(ITEM_NPROMPT, "Negative Prompt", 800);
+}
 
 	const int noImageIndex = static_cast<int>(g_SubImages.size());
 	auto addSubImageValues = [&](const FilterPlugIn::Property::EnumerationItem& enumeration) {
@@ -860,12 +901,22 @@ static void InitProperty(FilterPlugIn::Property& p) {
 
 	auto subimage4 = p.addEnumerationItem(ITEM_SUBIMAGE_PICTURE4, "SubImage(Picture 4)");
 	addSubImageValues(subimage4);
+	
+	if (mode == "Banana") {
+		auto subimage5 = p.addEnumerationItem(ITEM_SUBIMAGE_PICTURE5, "SubImage(Picture 5)");
+		addSubImageValues(subimage5);
+		auto subimage6 = p.addEnumerationItem(ITEM_SUBIMAGE_PICTURE6, "SubImage(Picture 6)");
+		addSubImageValues(subimage6);
+		auto subimage7 = p.addEnumerationItem(ITEM_SUBIMAGE_PICTURE7, "SubImage(Picture 7)");
+		addSubImageValues(subimage7);
+		auto subimage8 = p.addEnumerationItem(ITEM_SUBIMAGE_PICTURE8, "SubImage(Picture 8)");
+		addSubImageValues(subimage8);
+	}
+
 	// p.addIntegerItem(ITEM_STEPS, "Steps", 20, 1, 60);
 	// p.addDecimalItem(ITEM_STRENGTH, "Strength", 0.5, 0.0, 1.0);
 	// p.addDecimalItem(ITEM_CONTROL_STRENGTH, "Control Strength", 8.0, 1.0, 20.0);
 
-	p.addStringItem(ITEM_PROMPT, "Prompt", 800);
-	p.addStringItem(ITEM_NPROMPT, "Negative Prompt", 800);
 }
 
 // iniファイルから文字列読み込み
@@ -1005,6 +1056,42 @@ static bool SyncProperty(FilterPlugIn::Int itemKey, FilterPlugIn::PropertyObject
 		}
 		break;
 	}
+	case ITEM_SUBIMAGE_PICTURE5:
+	{
+		auto subimage = property.getEnumeration(ITEM_SUBIMAGE_PICTURE5);
+		if (info.subimage_indices[3] != subimage) {
+			info.subimage_indices[3] = subimage;
+			return true;
+		}
+		break;
+	}
+	case ITEM_SUBIMAGE_PICTURE6:
+	{
+		auto subimage = property.getEnumeration(ITEM_SUBIMAGE_PICTURE6);
+		if (info.subimage_indices[4] != subimage) {
+			info.subimage_indices[4] = subimage;
+			return true;
+		}
+		break;
+	}
+	case ITEM_SUBIMAGE_PICTURE7:
+	{
+		auto subimage = property.getEnumeration(ITEM_SUBIMAGE_PICTURE7);
+		if (info.subimage_indices[5] != subimage) {
+			info.subimage_indices[5] = subimage;
+			return true;
+		}
+		break;
+	}
+	case ITEM_SUBIMAGE_PICTURE8:
+	{
+		auto subimage = property.getEnumeration(ITEM_SUBIMAGE_PICTURE8);
+		if (info.subimage_indices[6] != subimage) {
+			info.subimage_indices[6] = subimage;
+			return true;
+		}
+		break;
+	}
 	case ITEM_PROMPT:
 		return property.sync(ITEM_PROMPT, g_params.prompt);
 	case ITEM_NPROMPT:
@@ -1025,7 +1112,7 @@ static void FilterPropertyCallBack(FilterPlugIn::PropertyCallBackResult* result,
 
 /// フィルタ初期化
 /// @return 正常終了ならtrue
-static bool InitializeFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data) {
+bool InitializeFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data, std::string mode) {
 	FilterPlugIn::Initialize initialize(server);
 	auto info = static_cast<FilterInfo*>(*data);
 	info->server = server;
@@ -1050,7 +1137,7 @@ static bool InitializeFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* da
 	g_RetryWaitSeconds = std::stoi(retryWaitSeconds);
 
 	// 設定リストの初期化
-	g_Settings = GetCombinedIniSections(iniPath, userIniOptionalPath);
+	g_Settings = GetCombinedIniSections(iniPath, userIniOptionalPath, mode);
 
 	// SubImageの初期化
 	g_SubImages = GetSubImages();
@@ -1063,7 +1150,11 @@ static bool InitializeFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* da
 
 	// フィルタカテゴリ名とフィルタ名の設定
 	initialize.SetCategoryName("ComfyUI API", 'x');
-	initialize.SetFilterName("Generate", 'x');
+	if (mode == "Banana") {
+		initialize.SetFilterName("Nano Banana Generate", 'n');
+	} else{
+		initialize.SetFilterName("Generate", 'x');
+	}
 
 	// プレビュー無し（LCMとかで高速化出来たらONにしてもいいか？）
 	initialize.SetCanPreview(false);
@@ -1076,10 +1167,14 @@ static bool InitializeFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* da
 
 	// プロパティの作成
 	auto property = FilterPlugIn::Property(server);
-	InitProperty(property);
+	InitProperty(property, mode);
 	property.setEnumeration(ITEM_SUBIMAGE, info->subimage_indices[0]);
 	property.setEnumeration(ITEM_SUBIMAGE_PICTURE3, info->subimage_indices[1]);
 	property.setEnumeration(ITEM_SUBIMAGE_PICTURE4, info->subimage_indices[2]);
+	property.setEnumeration(ITEM_SUBIMAGE_PICTURE5, info->subimage_indices[3]);
+	property.setEnumeration(ITEM_SUBIMAGE_PICTURE6, info->subimage_indices[4]);
+	property.setEnumeration(ITEM_SUBIMAGE_PICTURE7, info->subimage_indices[5]);
+	property.setEnumeration(ITEM_SUBIMAGE_PICTURE8, info->subimage_indices[6]);
 	initialize.SetProperty(property);
 
 	// 初回は0番設定に
@@ -1099,7 +1194,7 @@ static bool InitializeFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* da
 
 /// フィルタ終了
 /// @return 正常終了ならtrue
-static bool TerminateFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data) {
+bool TerminateFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data) {
 	// 特に解放するリソースは無い
 	return true;
 }
@@ -1409,7 +1504,7 @@ std::string getDateString() {
 
 /// フィルタ実行f
 /// @return 正常終了ならtrue
-static bool RunFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data) {
+bool RunFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data, std::string mode) {
 	print("RunFilter start");
 	FilterPlugIn::Run run(server);
 	auto info = static_cast<FilterInfo*>(*data);
@@ -1435,6 +1530,13 @@ static bool RunFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data) {
 		property.setEnumeration(ITEM_SUBIMAGE, info->subimage_indices[0]);
 		property.setEnumeration(ITEM_SUBIMAGE_PICTURE3, info->subimage_indices[1]);
 		property.setEnumeration(ITEM_SUBIMAGE_PICTURE4, info->subimage_indices[2]);
+
+        if (mode == "Banana") {
+			property.setEnumeration(ITEM_SUBIMAGE_PICTURE5, info->subimage_indices[3]);
+			property.setEnumeration(ITEM_SUBIMAGE_PICTURE6, info->subimage_indices[4]);
+			property.setEnumeration(ITEM_SUBIMAGE_PICTURE7, info->subimage_indices[5]);
+			property.setEnumeration(ITEM_SUBIMAGE_PICTURE8, info->subimage_indices[6]);
+		}		
 	};
 	refreshSelectedSubImages();
 
@@ -1748,6 +1850,7 @@ void Transfer(const FilterPlugIn::Block& dst, const ImageBuffer& src, const Filt
 	}
 }
 
+#if COMFYUI_INCLUDE_DEFAULT_ENTRYPOINT
 /// @brief プラグインのエントリーポイント
 /// @param result ここに成否の結果をつっこむ
 /// @param data 共有データ
@@ -1769,7 +1872,7 @@ extern "C" __declspec(dllexport) void TriglavPluginCall(FilterPlugIn::CallResult
 	switch (selector) {
 	case FilterPlugIn::Selector::ModuleInitialize:
 		if (!server->recordSuite.moduleInitializeRecord) return;
-		if (!InitializeModule(server, data)) return;
+		if (!InitializeModule(server, data, kModuleIDString)) return;
 		break;
 	case FilterPlugIn::Selector::ModuleTerminate:
 		if (!TerminateModule(server, data)) return;
@@ -1777,7 +1880,7 @@ extern "C" __declspec(dllexport) void TriglavPluginCall(FilterPlugIn::CallResult
 	case FilterPlugIn::Selector::FilterInitialize:
 		print("InitializeFilter {");
 		if (!server->recordSuite.filterInitializeRecord) return;
-		if (!InitializeFilter(server, data)) return;
+		if (!InitializeFilter(server, data, "")) return;
 		print("InitializeFilter }");
 		break;
 	case FilterPlugIn::Selector::FilterTerminate:
@@ -1786,10 +1889,11 @@ extern "C" __declspec(dllexport) void TriglavPluginCall(FilterPlugIn::CallResult
 	case FilterPlugIn::Selector::FilterRun:
 		print("RunFilter {");
 		if (!server->recordSuite.filterRunRecord) return;
-		if (!RunFilter(server, data)) return;
+		if (!RunFilter(server, data, "")) return;
 		print("RunFilter }");
 		break;
 	}
 	*result = FilterPlugIn::CallResult::Success;
 }
 
+#endif // COMFYUI_INCLUDE_DEFAULT_ENTRYPOINT

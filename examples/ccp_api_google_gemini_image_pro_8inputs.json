@@ -1,0 +1,2579 @@
+{
+  "id": "35da5b75-4431-4e57-8c6a-af4d581fb668",
+  "revision": 0,
+  "last_node_id": 68,
+  "last_link_id": 107,
+  "nodes": [
+    {
+      "id": 9,
+      "type": "GeminiInputFiles",
+      "pos": [
+        -1530,
+        390
+      ],
+      "size": [
+        330,
+        60
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 4,
+      "inputs": [
+        {
+          "name": "GEMINI_INPUT_FILES",
+          "shape": 7,
+          "type": "GEMINI_INPUT_FILES",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "GEMINI_INPUT_FILES",
+          "type": "GEMINI_INPUT_FILES",
+          "links": [
+            8
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.52",
+        "Node name for S&R": "GeminiInputFiles"
+      },
+      "widgets_values": [
+        null
+      ]
+    },
+    {
+      "id": 7,
+      "type": "GeminiInputFiles",
+      "pos": [
+        -1070,
+        390
+      ],
+      "size": [
+        330,
+        60
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 4,
+      "inputs": [
+        {
+          "name": "GEMINI_INPUT_FILES",
+          "shape": 7,
+          "type": "GEMINI_INPUT_FILES",
+          "link": 8
+        }
+      ],
+      "outputs": [
+        {
+          "name": "GEMINI_INPUT_FILES",
+          "type": "GEMINI_INPUT_FILES",
+          "links": []
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.52",
+        "Node name for S&R": "GeminiInputFiles"
+      },
+      "widgets_values": [
+        null
+      ]
+    },
+    {
+      "id": 8,
+      "type": "MarkdownNote",
+      "pos": [
+        -1070,
+        500
+      ],
+      "size": [
+        330,
+        90
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "About Gemini Input Files",
+      "properties": {},
+      "widgets_values": [
+        "The files need to be in the \"ComfyUI/input\" folder first. This node still needs updating to let you upload directly in the node.\n"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 13,
+      "type": "MarkdownNote",
+      "pos": [
+        -940,
+        880
+      ],
+      "size": [
+        210,
+        130
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "About multiple image input",
+      "properties": {},
+      "widgets_values": [
+        "The image1 will determine the ratio of the output image.\n\nIf you need more input images, try linking the Batch Image node in series.\n"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 4,
+      "type": "PreviewAny",
+      "pos": [
+        140,
+        580
+      ],
+      "size": [
+        400,
+        190
+      ],
+      "flags": {},
+      "order": 42,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 75
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.52",
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 2,
+      "type": "LoadImage",
+      "pos": [
+        -660,
+        80
+      ],
+      "size": [
+        340,
+        450
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 4,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": []
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.52",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "input.png",
+        "image"
+      ]
+    },
+    {
+      "id": 30,
+      "type": "SaveImage",
+      "pos": [
+        467.8012390136719,
+        101.72176361083984
+      ],
+      "size": [
+        390,
+        440
+      ],
+      "flags": {},
+      "order": 43,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 50
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.56"
+      },
+      "widgets_values": [
+        "CLIPSTUDIO_ComfyUI_PLUGIN\\CCPImage"
+      ]
+    },
+    {
+      "id": 38,
+      "type": "ImageResize+",
+      "pos": [
+        42.24346160888672,
+        846.5936889648438
+      ],
+      "size": [
+        270,
+        218
+      ],
+      "flags": {},
+      "order": 41,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 107
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": 105
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": 106
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            50
+          ]
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "1.1.0",
+        "Node name for S&R": "ImageResize+",
+        "aux_id": "cubiq/ComfyUI_essentials"
+      },
+      "widgets_values": [
+        512,
+        0,
+        "nearest",
+        "keep proportion",
+        "always",
+        0
+      ]
+    },
+    {
+      "id": 33,
+      "type": "ImageResize+",
+      "pos": [
+        -963.451171875,
+        1289.8636474609375
+      ],
+      "size": [
+        270,
+        218
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 45
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": 42
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            44
+          ]
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "1.1.0",
+        "Node name for S&R": "ImageResize+",
+        "aux_id": "cubiq/ComfyUI_essentials"
+      },
+      "widgets_values": [
+        512,
+        0,
+        "nearest",
+        "keep proportion",
+        "downscale if bigger",
+        0
+      ]
+    },
+    {
+      "id": 35,
+      "type": "ImageResize+",
+      "pos": [
+        -659.9771118164062,
+        1299.9393310546875
+      ],
+      "size": [
+        270,
+        218
+      ],
+      "flags": {},
+      "order": 23,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 44
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": 43
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            46,
+            47
+          ]
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "1.1.0",
+        "Node name for S&R": "ImageResize+",
+        "aux_id": "cubiq/ComfyUI_essentials"
+      },
+      "widgets_values": [
+        0,
+        512,
+        "nearest",
+        "keep proportion",
+        "downscale if bigger",
+        0
+      ]
+    },
+    {
+      "id": 41,
+      "type": "ImageResize+",
+      "pos": [
+        -1229.9547119140625,
+        1541.144775390625
+      ],
+      "size": [
+        270,
+        218
+      ],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 53
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": 65
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            54
+          ]
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "1.1.0",
+        "Node name for S&R": "ImageResize+",
+        "aux_id": "cubiq/ComfyUI_essentials"
+      },
+      "widgets_values": [
+        512,
+        0,
+        "nearest",
+        "keep proportion",
+        "downscale if bigger",
+        0
+      ]
+    },
+    {
+      "id": 43,
+      "type": "ImageResize+",
+      "pos": [
+        -1178.0274658203125,
+        1934.3060302734375
+      ],
+      "size": [
+        270,
+        218
+      ],
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 56
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": 67
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            57
+          ]
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "1.1.0",
+        "Node name for S&R": "ImageResize+",
+        "aux_id": "cubiq/ComfyUI_essentials"
+      },
+      "widgets_values": [
+        512,
+        0,
+        "nearest",
+        "keep proportion",
+        "downscale if bigger",
+        0
+      ]
+    },
+    {
+      "id": 44,
+      "type": "ImageResize+",
+      "pos": [
+        -831.5286865234375,
+        1899.8736572265625
+      ],
+      "size": [
+        270,
+        218
+      ],
+      "flags": {},
+      "order": 25,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 57
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": 68
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            59
+          ]
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "1.1.0",
+        "Node name for S&R": "ImageResize+",
+        "aux_id": "cubiq/ComfyUI_essentials"
+      },
+      "widgets_values": [
+        0,
+        512,
+        "nearest",
+        "keep proportion",
+        "downscale if bigger",
+        0
+      ]
+    },
+    {
+      "id": 42,
+      "type": "ImageResize+",
+      "pos": [
+        -895.324462890625,
+        1558.6387939453125
+      ],
+      "size": [
+        270,
+        218
+      ],
+      "flags": {},
+      "order": 24,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 54
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": 66
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            60
+          ]
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "1.1.0",
+        "Node name for S&R": "ImageResize+",
+        "aux_id": "cubiq/ComfyUI_essentials"
+      },
+      "widgets_values": [
+        0,
+        512,
+        "nearest",
+        "keep proportion",
+        "downscale if bigger",
+        0
+      ]
+    },
+    {
+      "id": 10,
+      "type": "ImageBatch",
+      "pos": [
+        -870,
+        720
+      ],
+      "size": [
+        140,
+        46
+      ],
+      "flags": {},
+      "order": 30,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image1",
+          "type": "IMAGE",
+          "link": 12
+        },
+        {
+          "name": "image2",
+          "type": "IMAGE",
+          "link": 46
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            99
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.52",
+        "Node name for S&R": "ImageBatch"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 36,
+      "type": "PreviewImage",
+      "pos": [
+        -259.4574890136719,
+        1184.558837890625
+      ],
+      "size": [
+        140,
+        246
+      ],
+      "flags": {},
+      "order": 31,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 47
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.64",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 12,
+      "type": "LoadImage",
+      "pos": [
+        -1240,
+        800
+      ],
+      "size": [
+        284,
+        314.00006103515625
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            45
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.52",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "temp_subimg_req_yyyyMMddhhmmss.png",
+        "image"
+      ]
+    },
+    {
+      "id": 39,
+      "type": "LoadImage",
+      "pos": [
+        -1555.4632568359375,
+        1448.8935546875
+      ],
+      "size": [
+        284,
+        314.00006103515625
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            53
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.52",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "temp_subimg2_req_yyyyMMddhhmmss.png",
+        "image"
+      ]
+    },
+    {
+      "id": 40,
+      "type": "LoadImage",
+      "pos": [
+        -1546.0118408203125,
+        1866.342529296875
+      ],
+      "size": [
+        284,
+        314.00006103515625
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            56
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.52",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "temp_subimg3_req_yyyyMMddhhmmss.png",
+        "image"
+      ]
+    },
+    {
+      "id": 47,
+      "type": "ImageScaleToTotalPixels",
+      "pos": [
+        -1572.9587311623072,
+        1211.0474988738688
+      ],
+      "size": [
+        281.9,
+        82
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 69
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            70
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.68",
+        "Node name for S&R": "ImageScaleToTotalPixels"
+      },
+      "widgets_values": [
+        "nearest-exact",
+        1
+      ]
+    },
+    {
+      "id": 53,
+      "type": "ImageResize+",
+      "pos": [
+        -1224.9547119140632,
+        2382.559070738426
+      ],
+      "size": [
+        270,
+        218
+      ],
+      "flags": {},
+      "order": 19,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 79
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": 77
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            80
+          ]
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "1.1.0",
+        "Node name for S&R": "ImageResize+",
+        "aux_id": "cubiq/ComfyUI_essentials"
+      },
+      "widgets_values": [
+        512,
+        0,
+        "nearest",
+        "keep proportion",
+        "downscale if bigger",
+        0
+      ]
+    },
+    {
+      "id": 54,
+      "type": "ImageResize+",
+      "pos": [
+        -890.3244628906252,
+        2400.0530892931133
+      ],
+      "size": [
+        270,
+        218
+      ],
+      "flags": {},
+      "order": 26,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 80
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": 78
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            81
+          ]
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "1.1.0",
+        "Node name for S&R": "ImageResize+",
+        "aux_id": "cubiq/ComfyUI_essentials"
+      },
+      "widgets_values": [
+        0,
+        512,
+        "nearest",
+        "keep proportion",
+        "downscale if bigger",
+        0
+      ]
+    },
+    {
+      "id": 55,
+      "type": "ImageResize+",
+      "pos": [
+        -1173.0274658203132,
+        2775.7203256212383
+      ],
+      "size": [
+        270,
+        218
+      ],
+      "flags": {},
+      "order": 20,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 82
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": 85
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            83
+          ]
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "1.1.0",
+        "Node name for S&R": "ImageResize+",
+        "aux_id": "cubiq/ComfyUI_essentials"
+      },
+      "widgets_values": [
+        512,
+        0,
+        "nearest",
+        "keep proportion",
+        "downscale if bigger",
+        0
+      ]
+    },
+    {
+      "id": 56,
+      "type": "ImageResize+",
+      "pos": [
+        -826.5286865234377,
+        2741.2879525743638
+      ],
+      "size": [
+        270,
+        218
+      ],
+      "flags": {},
+      "order": 27,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 83
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": 86
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            84
+          ]
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "1.1.0",
+        "Node name for S&R": "ImageResize+",
+        "aux_id": "cubiq/ComfyUI_essentials"
+      },
+      "widgets_values": [
+        0,
+        512,
+        "nearest",
+        "keep proportion",
+        "downscale if bigger",
+        0
+      ]
+    },
+    {
+      "id": 45,
+      "type": "ImageBatch",
+      "pos": [
+        -454.0361022949219,
+        1649.298583984375
+      ],
+      "size": [
+        140,
+        46
+      ],
+      "flags": {},
+      "order": 32,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image1",
+          "type": "IMAGE",
+          "link": 60
+        },
+        {
+          "name": "image2",
+          "type": "IMAGE",
+          "link": 59
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            100
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.52",
+        "Node name for S&R": "ImageBatch"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 57,
+      "type": "ImageBatch",
+      "pos": [
+        -449.03610229492193,
+        2490.712879332176
+      ],
+      "size": [
+        140,
+        46
+      ],
+      "flags": {},
+      "order": 33,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image1",
+          "type": "IMAGE",
+          "link": 81
+        },
+        {
+          "name": "image2",
+          "type": "IMAGE",
+          "link": 84
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            87
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.52",
+        "Node name for S&R": "ImageBatch"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 62,
+      "type": "ImageResize+",
+      "pos": [
+        167.69114583261438,
+        2755.2781436255414
+      ],
+      "size": [
+        270,
+        218
+      ],
+      "flags": {},
+      "order": 22,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 92
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": 90
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            93
+          ]
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "1.1.0",
+        "Node name for S&R": "ImageResize+",
+        "aux_id": "cubiq/ComfyUI_essentials"
+      },
+      "widgets_values": [
+        512,
+        0,
+        "nearest",
+        "keep proportion",
+        "downscale if bigger",
+        0
+      ]
+    },
+    {
+      "id": 60,
+      "type": "ImageResize+",
+      "pos": [
+        91.27568213203942,
+        2337.628788571871
+      ],
+      "size": [
+        270,
+        218
+      ],
+      "flags": {},
+      "order": 21,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 94
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": 88
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            95
+          ]
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "1.1.0",
+        "Node name for S&R": "ImageResize+",
+        "aux_id": "cubiq/ComfyUI_essentials"
+      },
+      "widgets_values": [
+        512,
+        0,
+        "nearest",
+        "keep proportion",
+        "downscale if bigger",
+        0
+      ]
+    },
+    {
+      "id": 63,
+      "type": "ImageResize+",
+      "pos": [
+        514.18992512949,
+        2720.845770578667
+      ],
+      "size": [
+        270,
+        218
+      ],
+      "flags": {},
+      "order": 29,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 93
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": 91
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            96
+          ]
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "1.1.0",
+        "Node name for S&R": "ImageResize+",
+        "aux_id": "cubiq/ComfyUI_essentials"
+      },
+      "widgets_values": [
+        0,
+        512,
+        "nearest",
+        "keep proportion",
+        "downscale if bigger",
+        0
+      ]
+    },
+    {
+      "id": 61,
+      "type": "ImageResize+",
+      "pos": [
+        450.3941487623027,
+        2379.6109072974164
+      ],
+      "size": [
+        270,
+        218
+      ],
+      "flags": {},
+      "order": 28,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 95
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": 89
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            97
+          ]
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "1.1.0",
+        "Node name for S&R": "ImageResize+",
+        "aux_id": "cubiq/ComfyUI_essentials"
+      },
+      "widgets_values": [
+        0,
+        512,
+        "nearest",
+        "keep proportion",
+        "downscale if bigger",
+        0
+      ]
+    },
+    {
+      "id": 64,
+      "type": "ImageBatch",
+      "pos": [
+        891.6825093580056,
+        2470.270697336479
+      ],
+      "size": [
+        140,
+        46
+      ],
+      "flags": {},
+      "order": 34,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image1",
+          "type": "IMAGE",
+          "link": 97
+        },
+        {
+          "name": "image2",
+          "type": "IMAGE",
+          "link": 96
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            98
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.52",
+        "Node name for S&R": "ImageBatch"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 66,
+      "type": "ImageBatch",
+      "pos": [
+        -182.8711962029456,
+        1735.2575830064388
+      ],
+      "size": [
+        140,
+        46
+      ],
+      "flags": {},
+      "order": 35,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image1",
+          "type": "IMAGE",
+          "link": 99
+        },
+        {
+          "name": "image2",
+          "type": "IMAGE",
+          "link": 100
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            101
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.52",
+        "Node name for S&R": "ImageBatch"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 65,
+      "type": "ImageBatch",
+      "pos": [
+        -131.89839581241355,
+        1873.688353751046
+      ],
+      "size": [
+        140,
+        46
+      ],
+      "flags": {},
+      "order": 36,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image1",
+          "type": "IMAGE",
+          "link": 87
+        },
+        {
+          "name": "image2",
+          "type": "IMAGE",
+          "link": 98
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            102
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.52",
+        "Node name for S&R": "ImageBatch"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 46,
+      "type": "ImageBatch",
+      "pos": [
+        28.00834763060997,
+        1659.8473043053148
+      ],
+      "size": [
+        140,
+        46
+      ],
+      "flags": {},
+      "order": 37,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image1",
+          "type": "IMAGE",
+          "link": 101
+        },
+        {
+          "name": "image2",
+          "type": "IMAGE",
+          "link": 102
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            63,
+            74
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.52",
+        "Node name for S&R": "ImageBatch"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 37,
+      "type": "PreviewImage",
+      "pos": [
+        305.92864919123485,
+        1552.3670744384708
+      ],
+      "size": [
+        617.878480880489,
+        537.5059727979269
+      ],
+      "flags": {},
+      "order": 38,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 63
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.64",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 51,
+      "type": "LoadImage",
+      "pos": [
+        -1550.4632568359382,
+        2290.307850035301
+      ],
+      "size": [
+        284,
+        314.00006103515625
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            79
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.52",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "temp_subimg4_req_yyyyMMddhhmmss.png",
+        "image"
+      ]
+    },
+    {
+      "id": 52,
+      "type": "LoadImage",
+      "pos": [
+        -1541.0118408203132,
+        2707.7568246446763
+      ],
+      "size": [
+        284,
+        314.00006103515625
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            82
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.52",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "temp_subimg5_req_yyyyMMddhhmmss.png",
+        "image"
+      ]
+    },
+    {
+      "id": 58,
+      "type": "LoadImage",
+      "pos": [
+        -248.22606288746834,
+        2245.377567868746
+      ],
+      "size": [
+        284,
+        314.00006103515625
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            94
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.52",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "temp_subimg6_req_yyyyMMddhhmmss.png",
+        "image"
+      ]
+    },
+    {
+      "id": 59,
+      "type": "LoadImage",
+      "pos": [
+        -200.29322916738545,
+        2687.3146426489793
+      ],
+      "size": [
+        284,
+        314.00006103515625
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            92
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.52",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "temp_subimg7_req_yyyyMMddhhmmss.png",
+        "image"
+      ]
+    },
+    {
+      "id": 67,
+      "type": "SaveImage",
+      "pos": [
+        528.6777117283425,
+        -255.02304949271897
+      ],
+      "size": [
+        449.54880022036923,
+        270
+      ],
+      "flags": {},
+      "order": 40,
+      "mode": 4,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 103
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.71"
+      },
+      "widgets_values": [
+        "ComfyUI"
+      ]
+    },
+    {
+      "id": 50,
+      "type": "GeminiImage2Node",
+      "pos": [
+        -288.2754380744515,
+        94.2122161357433
+      ],
+      "size": [
+        385.1637476363114,
+        714
+      ],
+      "flags": {},
+      "order": 39,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 74
+        },
+        {
+          "name": "files",
+          "shape": 7,
+          "type": "GEMINI_INPUT_FILES",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            103,
+            107
+          ]
+        },
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            75
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.71",
+        "Node name for S&R": "GeminiImage2Node"
+      },
+      "widgets_values": [
+        "###input1###",
+        "gemini-3-pro-image-preview",
+        1123672701722441,
+        "randomize",
+        "auto",
+        "2K",
+        "IMAGE+TEXT"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 34,
+      "type": "GetImageSize",
+      "pos": [
+        -1260.4202880859375,
+        1168.8228759765625
+      ],
+      "size": [
+        140,
+        124
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 70
+        }
+      ],
+      "outputs": [
+        {
+          "name": "width",
+          "type": "INT",
+          "links": [
+            42,
+            65,
+            67,
+            77,
+            85,
+            88,
+            89,
+            90
+          ]
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": [
+            43,
+            66,
+            68,
+            78,
+            86,
+            91
+          ]
+        },
+        {
+          "name": "batch_size",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.64",
+        "Node name for S&R": "GetImageSize"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 11,
+      "type": "LoadImage",
+      "pos": [
+        -1540,
+        800
+      ],
+      "size": [
+        284,
+        314.00006103515625
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            12,
+            69,
+            104
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.52",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "temp_img_req_yyyyMMddhhmmss.png",
+        "image"
+      ]
+    },
+    {
+      "id": 68,
+      "type": "GetImageSize",
+      "pos": [
+        -453.8874913982087,
+        845.8243240959889
+      ],
+      "size": [
+        140,
+        124
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 104
+        }
+      ],
+      "outputs": [
+        {
+          "name": "width",
+          "type": "INT",
+          "links": [
+            105
+          ]
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": [
+            106
+          ]
+        },
+        {
+          "name": "batch_size",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.64",
+        "Node name for S&R": "GetImageSize"
+      },
+      "widgets_values": []
+    }
+  ],
+  "links": [
+    [
+      8,
+      9,
+      0,
+      7,
+      0,
+      "GEMINI_INPUT_FILES"
+    ],
+    [
+      12,
+      11,
+      0,
+      10,
+      0,
+      "IMAGE"
+    ],
+    [
+      42,
+      34,
+      0,
+      33,
+      1,
+      "INT"
+    ],
+    [
+      43,
+      34,
+      1,
+      35,
+      1,
+      "INT"
+    ],
+    [
+      44,
+      33,
+      0,
+      35,
+      0,
+      "IMAGE"
+    ],
+    [
+      45,
+      12,
+      0,
+      33,
+      0,
+      "IMAGE"
+    ],
+    [
+      46,
+      35,
+      0,
+      10,
+      1,
+      "IMAGE"
+    ],
+    [
+      47,
+      35,
+      0,
+      36,
+      0,
+      "IMAGE"
+    ],
+    [
+      50,
+      38,
+      0,
+      30,
+      0,
+      "IMAGE"
+    ],
+    [
+      53,
+      39,
+      0,
+      41,
+      0,
+      "IMAGE"
+    ],
+    [
+      54,
+      41,
+      0,
+      42,
+      0,
+      "IMAGE"
+    ],
+    [
+      56,
+      40,
+      0,
+      43,
+      0,
+      "IMAGE"
+    ],
+    [
+      57,
+      43,
+      0,
+      44,
+      0,
+      "IMAGE"
+    ],
+    [
+      59,
+      44,
+      0,
+      45,
+      1,
+      "IMAGE"
+    ],
+    [
+      60,
+      42,
+      0,
+      45,
+      0,
+      "IMAGE"
+    ],
+    [
+      63,
+      46,
+      0,
+      37,
+      0,
+      "IMAGE"
+    ],
+    [
+      65,
+      34,
+      0,
+      41,
+      1,
+      "INT"
+    ],
+    [
+      66,
+      34,
+      1,
+      42,
+      1,
+      "INT"
+    ],
+    [
+      67,
+      34,
+      0,
+      43,
+      1,
+      "INT"
+    ],
+    [
+      68,
+      34,
+      1,
+      44,
+      1,
+      "INT"
+    ],
+    [
+      69,
+      11,
+      0,
+      47,
+      0,
+      "IMAGE"
+    ],
+    [
+      70,
+      47,
+      0,
+      34,
+      0,
+      "IMAGE"
+    ],
+    [
+      74,
+      46,
+      0,
+      50,
+      0,
+      "IMAGE"
+    ],
+    [
+      75,
+      50,
+      1,
+      4,
+      0,
+      "*"
+    ],
+    [
+      77,
+      34,
+      0,
+      53,
+      1,
+      "INT"
+    ],
+    [
+      78,
+      34,
+      1,
+      54,
+      1,
+      "INT"
+    ],
+    [
+      79,
+      51,
+      0,
+      53,
+      0,
+      "IMAGE"
+    ],
+    [
+      80,
+      53,
+      0,
+      54,
+      0,
+      "IMAGE"
+    ],
+    [
+      81,
+      54,
+      0,
+      57,
+      0,
+      "IMAGE"
+    ],
+    [
+      82,
+      52,
+      0,
+      55,
+      0,
+      "IMAGE"
+    ],
+    [
+      83,
+      55,
+      0,
+      56,
+      0,
+      "IMAGE"
+    ],
+    [
+      84,
+      56,
+      0,
+      57,
+      1,
+      "IMAGE"
+    ],
+    [
+      85,
+      34,
+      0,
+      55,
+      1,
+      "INT"
+    ],
+    [
+      86,
+      34,
+      1,
+      56,
+      1,
+      "INT"
+    ],
+    [
+      87,
+      57,
+      0,
+      65,
+      0,
+      "IMAGE"
+    ],
+    [
+      88,
+      34,
+      0,
+      60,
+      1,
+      "INT"
+    ],
+    [
+      89,
+      34,
+      0,
+      61,
+      1,
+      "INT"
+    ],
+    [
+      90,
+      34,
+      0,
+      62,
+      1,
+      "INT"
+    ],
+    [
+      91,
+      34,
+      1,
+      63,
+      1,
+      "INT"
+    ],
+    [
+      92,
+      59,
+      0,
+      62,
+      0,
+      "IMAGE"
+    ],
+    [
+      93,
+      62,
+      0,
+      63,
+      0,
+      "IMAGE"
+    ],
+    [
+      94,
+      58,
+      0,
+      60,
+      0,
+      "IMAGE"
+    ],
+    [
+      95,
+      60,
+      0,
+      61,
+      0,
+      "IMAGE"
+    ],
+    [
+      96,
+      63,
+      0,
+      64,
+      1,
+      "IMAGE"
+    ],
+    [
+      97,
+      61,
+      0,
+      64,
+      0,
+      "IMAGE"
+    ],
+    [
+      98,
+      64,
+      0,
+      65,
+      1,
+      "IMAGE"
+    ],
+    [
+      99,
+      10,
+      0,
+      66,
+      0,
+      "IMAGE"
+    ],
+    [
+      100,
+      45,
+      0,
+      66,
+      1,
+      "IMAGE"
+    ],
+    [
+      101,
+      66,
+      0,
+      46,
+      0,
+      "IMAGE"
+    ],
+    [
+      102,
+      65,
+      0,
+      46,
+      1,
+      "IMAGE"
+    ],
+    [
+      103,
+      50,
+      0,
+      67,
+      0,
+      "IMAGE"
+    ],
+    [
+      104,
+      11,
+      0,
+      68,
+      0,
+      "IMAGE"
+    ],
+    [
+      105,
+      68,
+      0,
+      38,
+      1,
+      "INT"
+    ],
+    [
+      106,
+      68,
+      1,
+      38,
+      2,
+      "INT"
+    ],
+    [
+      107,
+      50,
+      0,
+      38,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "Files input (Ctrl-B to enable)",
+      "bounding": [
+        -1550,
+        290,
+        860,
+        310
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 2,
+      "title": "Multiple image input (Ctrl-B to enable)",
+      "bounding": [
+        -1550,
+        640,
+        860,
+        490
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.6127496936597682,
+      "offset": [
+        1329.2234440196717,
+        519.742760381693
+      ]
+    },
+    "frontendVersion": "1.30.6",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}
