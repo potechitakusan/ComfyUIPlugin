@@ -10,6 +10,7 @@
 #include <string>
 #include <cstdlib> // system関数のために必要
 #include <sstream> // ファイル読み込みのために必要
+#include <iomanip>
 #include <array>
 #include <algorithm>
 #include <wchar.h> // ワイド文字用（日本語フォルダ用を想定したがなくても良いかも）
@@ -75,6 +76,16 @@ const std::array<std::string, kSubImageDropdownCount> kSubImageUploadPrefixes = 
 // 置換対象のマーカー プロンプト
 const std::string MARKER_PROMPT = "###input1###"; 
 const std::string MARKER_NPROMPT = "###input2###"; 
+const std::array<std::string, 3> kNumberMarkers = {
+	"###num1###",
+	"###num2###",
+	"###num3###",
+};
+
+constexpr size_t kNumberParameterCount = kNumberMarkers.size();
+constexpr std::array<double, kNumberParameterCount> kDefaultNumberMinimums = { 0.0, 0.0, 0.0 };
+constexpr std::array<double, kNumberParameterCount> kDefaultNumberMaximums = { 10.0, 1.0, 1.0 };
+constexpr std::array<double, kNumberParameterCount> kDefaultNumberValues = { 1.0, 0.75, 0.0 };
 
 const std::string kNoImageDisplayName = "(no image)";
 
@@ -107,6 +118,10 @@ struct Params {
      std::array<std::string, kSubImageDropdownCount> input_subimage_filenames;
      std::string prompt;
      std::string negative_prompt;
+	 std::array<double, kNumberParameterCount> numbers = kDefaultNumberValues;
+	 std::array<double, kNumberParameterCount> number_minimums = kDefaultNumberMinimums;
+	 std::array<double, kNumberParameterCount> number_maximums = kDefaultNumberMaximums;
+	 std::array<double, kNumberParameterCount> number_defaults = kDefaultNumberValues;
      int sample_steps;
 };
 
@@ -734,6 +749,20 @@ enum PropertyKey {
 	ITEM_SUBIMAGE_PICTURE8,
 	ITEM_PROMPT,
 	ITEM_NPROMPT,
+	ITEM_NUM1,
+	ITEM_NUM2,
+	ITEM_NUM3,
+};
+
+constexpr std::array<PropertyKey, kNumberParameterCount> kNumberPropertyKeys = {
+	ITEM_NUM1,
+	ITEM_NUM2,
+	ITEM_NUM3,
+};
+const std::array<std::string, kNumberParameterCount> kNumberPropertyNames = {
+	"num1 (CFG)",
+	"num2 (Denoise)",
+	"num3 (General)",
 };
 
 /// プラグイン初期化
@@ -884,7 +913,10 @@ static void InitProperty(FilterPlugIn::Property& p, std::string mode) {
 	if (mode != "Banana") {
 		p.addStringItem(ITEM_NPROMPT, "Negative Prompt", 800);
 }
-
+	for (size_t i = 0; i < kNumberParameterCount; ++i) {
+		p.addDecimalItem(kNumberPropertyKeys[i], kNumberPropertyNames[i],
+			kDefaultNumberValues[i], kDefaultNumberMinimums[i], kDefaultNumberMaximums[i]);
+	}
 	const int noImageIndex = static_cast<int>(g_SubImages.size());
 	auto addSubImageValues = [&](const FilterPlugIn::Property::EnumerationItem& enumeration) {
 		for(int i = 0; i < g_SubImages.size(); ++i) {
@@ -976,7 +1008,26 @@ static void iniUserPreferred(const std::string& defaultPath, const std::string& 
 /// @param index スイッチ先の設定インデックス
 /// @param data フィルター情報
 /// @param propertyObject 反映先プロパティ
-static void SwitchToSetting(int index, FilterPlugIn::Property& property, bool isDefault) {
+static std::string NumberToJson(double value) {
+	std::ostringstream stream;
+	stream << std::setprecision(15) << value;
+	return stream.str();
+}
+
+static void LoadNumberSetting(const std::string& defaultPath, const std::string& userPath,
+	const std::string& section, const std::string& key, double& value) {
+	std::string text;
+	iniUserPreferred(defaultPath, userPath, section, key, text);
+	if (text.empty()) return;
+	try {
+		value = std::stod(text);
+	} catch (const std::exception&) {
+		print(("Invalid numeric INI value: [" + section + "] " + key + " = " + text).c_str());
+	}
+}
+
+// resetNumberValues が false の場合は、前回実行時の数値を UI に戻す。
+static void SwitchToSetting(int index, FilterPlugIn::Property& property, bool resetNumberValues) {
 	if (index < 0 || g_Settings.size() <= index) return;
 	const auto setting = g_Settings[index];
 
@@ -992,6 +1043,27 @@ static void SwitchToSetting(int index, FilterPlugIn::Property& property, bool is
     iniUserPreferred(iniPath, userIniPath, setting, "prompt", g_params.prompt);
     iniUserPreferred(iniPath, userIniPath, setting, "negative_prompt", g_params.negative_prompt);
 
+	for (size_t i = 0; i < kNumberParameterCount; ++i) {
+		const std::string numberName = "num" + std::to_string(i + 1);
+		g_params.number_minimums[i] = kDefaultNumberMinimums[i];
+		g_params.number_maximums[i] = kDefaultNumberMaximums[i];
+		g_params.number_defaults[i] = kDefaultNumberValues[i];
+		LoadNumberSetting(iniPath, userIniPath, setting, numberName + "_min", g_params.number_minimums[i]);
+		LoadNumberSetting(iniPath, userIniPath, setting, numberName + "_max", g_params.number_maximums[i]);
+		LoadNumberSetting(iniPath, userIniPath, setting, numberName + "_default", g_params.number_defaults[i]);
+		if (g_params.number_minimums[i] > g_params.number_maximums[i]) {
+			print(("Invalid numeric range: [" + setting + "] " + numberName).c_str());
+			g_params.number_minimums[i] = kDefaultNumberMinimums[i];
+			g_params.number_maximums[i] = kDefaultNumberMaximums[i];
+		}
+		g_params.number_defaults[i] = std::clamp(g_params.number_defaults[i],
+			g_params.number_minimums[i], g_params.number_maximums[i]);
+		if (resetNumberValues) g_params.numbers[i] = g_params.number_defaults[i];
+		property.setDecimalMin(kNumberPropertyKeys[i], g_params.number_minimums[i]);
+		property.setDecimalMax(kNumberPropertyKeys[i], g_params.number_maximums[i]);
+		property.setDecimalDefault(kNumberPropertyKeys[i], g_params.number_defaults[i]);
+		property.setDecimal(kNumberPropertyKeys[i], g_params.numbers[i]);
+	}
 	print("SwitchToSetting:");
 	print(setting.c_str());
 	print(g_params.template_workflow_filename.c_str());
@@ -1023,7 +1095,7 @@ static bool SyncProperty(FilterPlugIn::Int itemKey, FilterPlugIn::PropertyObject
 		print("setting:");
 		print(std::to_string(setting).c_str());
 		if (info.setting != setting) {
-			SwitchToSetting(setting, property, false);
+			SwitchToSetting(setting, property, true);
 			info.setting = setting;
 			return true;
 		}
@@ -1096,6 +1168,12 @@ static bool SyncProperty(FilterPlugIn::Int itemKey, FilterPlugIn::PropertyObject
 		return property.sync(ITEM_PROMPT, g_params.prompt);
 	case ITEM_NPROMPT:
 	 	return property.sync(ITEM_NPROMPT, g_params.negative_prompt);
+	case ITEM_NUM1:
+		return property.sync(ITEM_NUM1, g_params.numbers[0]);
+	case ITEM_NUM2:
+		return property.sync(ITEM_NUM2, g_params.numbers[1]);
+	case ITEM_NUM3:
+		return property.sync(ITEM_NUM3, g_params.numbers[2]);
 	}
 	return false;
 }
@@ -1512,7 +1590,8 @@ bool RunFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data, std::strin
 
 	// 前回の設定で開く
 	FilterPlugIn::Property property(server, run.GetProperty());
-	SwitchToSetting(info->setting, property, true);
+	// API 実行後に変更された数値を保持したままフィルターを開く。
+	SwitchToSetting(info->setting, property, false);
 	auto refreshSelectedSubImages = [&]() {
 		for (size_t i = 0; i < kSubImageDropdownCount; ++i) {
 			const int selection = info->subimage_indices[i];
@@ -1626,6 +1705,9 @@ bool RunFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data, std::strin
 		// 2. 読み込んだJSON文字列内のマーカーを置換する
 		std::string prompt_modified = replace_all(prompt_original, MARKER_PROMPT, g_params.prompt);
 		prompt_modified = replace_all(prompt_modified, MARKER_NPROMPT, g_params.negative_prompt);
+		for (size_t i = 0; i < kNumberParameterCount; ++i) {
+			prompt_modified = replace_all(prompt_modified, kNumberMarkers[i], NumberToJson(g_params.numbers[i]));
+		}
 		print("Replace input image path");
 		prompt_modified = replace_all(prompt_modified, MARKER_INPUT_IMAGE, inputImageFileName + ".png");
 		for (size_t i = 0; i < kSubImageDropdownCount; ++i) {

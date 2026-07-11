@@ -437,6 +437,9 @@ namespace FilterPlugIn {
 		auto setBoolean(int key, bool val) const { service()->setBooleanValueProc(*this, key, val); }
 		auto setInteger(int key, int val) const { service()->setIntegerValueProc(*this, key, val); }
 		auto setDecimal(int key, double val) const { service()->setDecimalValueProc(*this, key, val); }
+		auto setDecimalDefault(int key, double val) const { service()->setDecimalDefaultValueProc(*this, key, val); }
+		auto setDecimalMin(int key, double val) const { service()->setDecimalMinValueProc(*this, key, val); }
+		auto setDecimalMax(int key, double val) const { service()->setDecimalMaxValueProc(*this, key, val); }
 		auto setEnumeration(int key, int val) const { service2()->setEnumerationValueProc(*this, key, val); }
 		auto setString(int key, String val) const { service2()->setStringValueProc(*this, key, val(server())); }
 		auto setStringDefault(int key, String val) const { service2()->setStringDefaultValueProc(*this, key, val(server())); }
@@ -452,6 +455,7 @@ namespace FilterPlugIn {
 		bool sync(int key, bool& val) const { Bool res; service()->getBooleanValueProc(&res, *this, key); return syncVal(val, res != 0); }
 		bool sync(int key, int& val) const { Int res; service()->getIntegerValueProc(&res, *this, key); return syncVal(val, res); }
 		bool sync(int key, float& val) const { Double res; service()->getDecimalValueProc(&res, *this, key); return syncVal(val, res); }
+		bool sync(int key, double& val) const { Double res; service()->getDecimalValueProc(&res, *this, key); return syncVal(val, res); }
 		bool sync(int key, std::string& val) const {
 			StringObject obj;
 			service2()->getStringValueProc(&obj, *this, key);
