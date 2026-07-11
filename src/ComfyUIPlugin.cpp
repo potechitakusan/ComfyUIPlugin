@@ -13,11 +13,13 @@
 #include <iomanip>
 #include <array>
 #include <algorithm>
+#include <cctype>
 #include <wchar.h> // ワイド文字用（日本語フォルダ用を想定したがなくても良いかも）
 #include <chrono>  // sleep_for
 #include <thread>  // sleep_for
 
 #include "ComfyUIPlugin.h"
+#include "ComvertImage.h"
 #include "FilterPlugIn.h"
 
 using namespace ComfyUIPlugin;
@@ -104,6 +106,9 @@ std::string g_APIKey;
 /// Retry
 int g_RetryMaxCount;
 int g_RetryWaitSeconds;
+
+/// trueの場合は従来のbat/Pythonによる画像変換を使用する。
+bool g_UsePythonImageConversion = false;
 
 /// temp_post.jsonの書き出し先
 std::string g_TempPostJsonPath;
@@ -401,22 +406,58 @@ bool http_post_image_to_file(const std::string& url, const std::string& image_fi
     return true;
 }
 
-bool call_png_to_bmp() {
-    std::string command = g_BasePath + "png_to_bmp.bat";
-    if (std::system(command.c_str()) != 0) {
-        print("Error: png_to_bmp command failed.");
-        return false;
-    }
-    return true;
+static void LogWicConversionFailure(const char* conversion, const std::string& errorMessage) {
+	print("IMAGE_CONVERSION_WIC_FAILED: %s (%s)", conversion, errorMessage.c_str());
+	print("Windows image conversion failed. To use the Python fallback:");
+	print("1. Add use_python_image_conversion = \"true\" under [COMMON] in UserSetting.ini.");
+	print("2. Configure Python PATH in bmp_to_png.bat and png_to_bmp.bat.");
+	print("3. Restart CLIP STUDIO PAINT and run the filter again.");
 }
 
-bool call_bmp_to_png(std::string imagePath) {
-    std::string command = g_BasePath + "bmp_to_png.bat " + imagePath;
-    if (std::system(command.c_str()) != 0) {
-        print("Error: bmp_to_png command failed.");
-        return false;
-    }
-    return true;
+bool call_png_to_bmp() {
+	if (g_UsePythonImageConversion) {
+		std::string command = g_BasePath + "png_to_bmp.bat";
+		if (std::system(command.c_str()) != 0) {
+			print("Error: png_to_bmp command failed.");
+			return false;
+		}
+		return true;
+	}
+
+	std::string errorMessage;
+	const bool converted = ComvertImage::PngToBmp(
+		g_BasePath + "temp_img_res.png",
+		g_BasePath + "temp_img_res.bmp",
+		&errorMessage);
+	if (!converted) {
+		LogWicConversionFailure("PNG to BMP", errorMessage);
+	}
+	return converted;
+}
+
+bool call_bmp_to_png(const std::string& imagePath) {
+	if (g_UsePythonImageConversion) {
+		std::string command = g_BasePath + "bmp_to_png.bat " + imagePath;
+		if (std::system(command.c_str()) != 0) {
+			print("Error: bmp_to_png command failed.");
+			return false;
+		}
+		return true;
+	}
+
+	const std::filesystem::path inputPath = std::filesystem::path(g_BasePath) / imagePath;
+	auto outputPath = inputPath;
+	outputPath.replace_extension(".png");
+
+	std::string errorMessage;
+	const bool converted = ComvertImage::BmpToPng(
+		inputPath.string(),
+		outputPath.string(),
+		&errorMessage);
+	if (!converted) {
+		LogWicConversionFailure("BMP to PNG", errorMessage);
+	}
+	return converted;
 }
 
 /**
@@ -989,6 +1030,16 @@ static void iniWithOverride(const std::string& defaultPath, const std::string& u
 	}
 }
 
+static bool iniBoolean(const std::string& value) {
+	std::string normalized = value;
+	std::transform(normalized.begin(), normalized.end(), normalized.begin(), [](unsigned char c) {
+		return static_cast<char>(std::tolower(c));
+	});
+	normalized.erase(std::remove_if(normalized.begin(), normalized.end(), [](unsigned char c) {
+		return std::isspace(c) || c == '"';
+	}), normalized.end());
+	return normalized == "true" || normalized == "1" || normalized == "yes" || normalized == "on";
+}
 // iniファイル読み込み：ユーザー→デフォルトの順で取得
 static void iniUserPreferred(const std::string& defaultPath, const std::string& userPath, const std::string& section, const std::string& key, std::string& val) {
 	if (!userPath.empty()) {
@@ -1210,9 +1261,15 @@ bool InitializeFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data, std
 	iniWithOverride(iniPath, userIniOptionalPath, "COMMON", "getimage_retry_max_count", retryMaxCount);
 	std::string retryWaitSeconds;
 	iniWithOverride(iniPath, userIniOptionalPath, "COMMON", "getimage_retry_wait_seconds", retryWaitSeconds);
+	std::string usePythonImageConversion = "false";
+	iniWithOverride(iniPath, userIniOptionalPath, "COMMON", "use_python_image_conversion", usePythonImageConversion);
 
 	g_RetryMaxCount = std::stoi(retryMaxCount);
 	g_RetryWaitSeconds = std::stoi(retryWaitSeconds);
+	g_UsePythonImageConversion = iniBoolean(usePythonImageConversion);
+	print(g_UsePythonImageConversion
+		? "Image conversion: Python fallback"
+		: "Image conversion: C++ / Windows WIC");
 
 	// 設定リストの初期化
 	g_Settings = GetCombinedIniSections(iniPath, userIniOptionalPath, mode);
@@ -1669,7 +1726,10 @@ bool RunFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data, std::strin
 		write_bmp_file(inputImageBuffer, g_BasePath + tempImageFileName +".bmp");
 
 		// 入力画像をPNGに変換
-		call_bmp_to_png(tempImageFileName + ".bmp");
+		if (!call_bmp_to_png(tempImageFileName + ".bmp")) {
+			print("Aborting process because BMP to PNG conversion failed.");
+			return false;
+		}
 
 		// 入力画像を事前にPOST
         std::string url = g_ServerAddress + "/upload/image";
@@ -1724,7 +1784,10 @@ bool RunFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data, std::strin
 			return false;
 		} 
 
-		call_png_to_bmp();
+		if (!call_png_to_bmp()) {
+			print("Aborting process because PNG to BMP conversion failed.");
+			return false;
+		}
 
 		print("Output to layer.");
 

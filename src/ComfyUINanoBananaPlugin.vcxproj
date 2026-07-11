@@ -163,6 +163,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="ComvertImage.cpp" />
     <ClCompile Include="ComfyUINanoBananaPlugin.cpp" />
     <ClCompile Include="ComfyUIPlugin.cpp" />
     <ClCompile Include="FilterPlugIn.cpp" />
@@ -174,6 +175,7 @@
     <CopyFileToFolders Include="ComfyUIPlugin.ini" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ComvertImage.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="ComfyUIPlugin.h" />
     <ClInclude Include="FilterPlugIn.h" />
