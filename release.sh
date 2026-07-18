@@ -19,7 +19,7 @@ if [ ! -d "$SOURCE" ]; then
     exit 1
 fi
 
-for required in ComfyUIPlugin.cpm ComfyUINanoBananaPlugin.cpm ComfyUIPlugin.ini UserSetting.ini empty.png; do
+for required in ComfyUIPlugin.cpm ComfyUINanoBananaPlugin.cpm ComfyUIPlugin.ini UserSetting.ini; do
     if [ ! -e "$SOURCE/$required" ]; then
         echo "Required macOS release file is missing: $SOURCE/$required" >&2
         exit 1
@@ -39,7 +39,7 @@ PACKAGE_SOURCE="$DESTINATION/dist/ComfyUIPlugin"
 mkdir -p "$PACKAGE_SOURCE/SubImage" "$DESTINATION/input" "$DESTINATION/examples"
 ditto "$SOURCE/ComfyUIPlugin.cpm" "$PACKAGE_SOURCE/ComfyUIPlugin.cpm"
 ditto "$SOURCE/ComfyUINanoBananaPlugin.cpm" "$PACKAGE_SOURCE/ComfyUINanoBananaPlugin.cpm"
-cp "$SOURCE/ComfyUIPlugin.ini" "$SOURCE/UserSetting.ini" "$SOURCE/empty.png" "$PACKAGE_SOURCE/"
+cp "$SOURCE/ComfyUIPlugin.ini" "$SOURCE/UserSetting.ini" "$PACKAGE_SOURCE/"
 cp "$ROOT/forMac/install.sh" "$DESTINATION/install.sh"
 chmod +x "$DESTINATION/install.sh"
 
