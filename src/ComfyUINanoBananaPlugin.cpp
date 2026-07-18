@@ -21,6 +21,12 @@
 
 using namespace ComfyUIPlugin;
 
+#if defined(__APPLE__)
+#define COMFYUI_EXPORT extern "C" __attribute__((visibility("default")))
+#else
+#define COMFYUI_EXPORT extern "C" __declspec(dllexport)
+#endif
+
 /// このプラグインのモジュールID（GUID）
 /// @note プラグイン毎に違う値にしないと駄目
 constexpr auto kModuleIDString = "bdf2dfd5-5405-4803-6343-83869a513339";
@@ -34,7 +40,7 @@ const std::string PLUGIN_MODE = "Banana";
 /// @param server 処理サーバー（ホスト側アクセスが全部入ってる）
 /// @param reserved 予約済みかな？
 /// @return 無し
-extern "C" __declspec(dllexport) void TriglavPluginCall(FilterPlugIn::CallResult* result, FilterPlugIn::Ptr* data, FilterPlugIn::Selector selector, FilterPlugIn::Server* server, void* reserved) {
+COMFYUI_EXPORT void TriglavPluginCall(FilterPlugIn::CallResult* result, FilterPlugIn::Ptr* data, FilterPlugIn::Selector selector, FilterPlugIn::Server* server, void* reserved) {
 	*result = FilterPlugIn::CallResult::Failed;
 
 	// 生きてないと困るものをチェック

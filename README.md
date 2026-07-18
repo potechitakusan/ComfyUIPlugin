@@ -92,6 +92,7 @@ FluxKontextDevのプロンプトの例は以下です。ワークフロー内の
     line art.
 
 それぞれ動作確認ができたら、画像のファイル名とプロンプトを元に戻してください。
+（後述の ComfyUI CCP API Exporter を利用する場合は戻さなくても良いです）
 
 ccp_api_google_gemini_image.json の戻し方
 * 左の入力画像は「temp_img_req_yyyyMMddhhmmss.png」を指定する。

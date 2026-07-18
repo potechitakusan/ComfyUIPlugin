@@ -15,4 +15,7 @@ bool BmpToPng(const std::string& inputPath, const std::string& outputPath, std::
 /// PNGをアルファなし24bit BMPへ変換する。
 bool PngToBmp(const std::string& inputPath, const std::string& outputPath, std::string* errorMessage = nullptr);
 
+/// RGBAピクセルを、アルファ付きPNGとして保存する。
+bool WriteRgbaPng(const std::string& outputPath, const unsigned char* rgbaPixels, int width, int height, std::string* errorMessage = nullptr);
+
 }

@@ -9,6 +9,8 @@
  */
 #include "pch.h"
 
+#if defined(_WIN32)
+
 #include "ComvertImage.h"
 
 #include <wincodec.h>
@@ -247,4 +249,17 @@ bool PngToBmp(const std::string& inputPath, const std::string& outputPath, std::
 		errorMessage);
 }
 
+bool WriteRgbaPng(const std::string& outputPath, const unsigned char* rgbaPixels, int width, int height, std::string* errorMessage) {
+	if (errorMessage) errorMessage->clear(); if (!rgbaPixels || width <= 0 || height <= 0) { if (errorMessage) *errorMessage = "Invalid RGBA image buffer."; return false; }
+	const auto outputPathWide = LocalPathToWide(outputPath); if (outputPathWide.empty()) { if (errorMessage) *errorMessage = "Image path conversion failed."; return false; }
+	const auto stride64 = static_cast<unsigned long long>(width) * 4; const auto bufferSize64 = stride64 * static_cast<unsigned long long>(height); if (stride64 > UINT_MAX || bufferSize64 > UINT_MAX) { if (errorMessage) *errorMessage = "RGBA image is too large."; return false; }
+	ComInitializer com; if (FAILED(com.result())) return Fail("CoInitializeEx", com.result(), errorMessage); ComObject<IWICImagingFactory> factory; HRESULT hr = CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(factory.put())); if (FAILED(hr)) return Fail("CoCreateInstance(CLSID_WICImagingFactory)", hr, errorMessage);
+	ComObject<IWICBitmap> bitmap; hr = factory->CreateBitmapFromMemory(static_cast<UINT>(width), static_cast<UINT>(height), GUID_WICPixelFormat32bppBGRA, static_cast<UINT>(stride64), static_cast<UINT>(bufferSize64), const_cast<BYTE*>(reinterpret_cast<const BYTE*>(rgbaPixels)), bitmap.put()); if (FAILED(hr)) return Fail("IWICImagingFactory::CreateBitmapFromMemory", hr, errorMessage);
+	DeleteFileW(outputPathWide.c_str()); ComObject<IWICStream> stream; hr = factory->CreateStream(stream.put()); if (FAILED(hr)) return Fail("IWICImagingFactory::CreateStream", hr, errorMessage); hr = stream->InitializeFromFilename(outputPathWide.c_str(), GENERIC_WRITE); if (FAILED(hr)) return Fail("IWICStream::InitializeFromFilename", hr, errorMessage);
+	ComObject<IWICBitmapEncoder> encoder; hr = factory->CreateEncoder(GUID_ContainerFormatPng, nullptr, encoder.put()); if (FAILED(hr)) return Fail("IWICImagingFactory::CreateEncoder", hr, errorMessage); hr = encoder->Initialize(stream.get(), WICBitmapEncoderNoCache); if (FAILED(hr)) return Fail("IWICBitmapEncoder::Initialize", hr, errorMessage);
+	ComObject<IWICBitmapFrameEncode> frame; ComObject<IPropertyBag2> options; hr = encoder->CreateNewFrame(frame.put(), options.put()); if (FAILED(hr)) return Fail("IWICBitmapEncoder::CreateNewFrame", hr, errorMessage); hr = frame->Initialize(options.get()); if (FAILED(hr)) return Fail("IWICBitmapFrameEncode::Initialize", hr, errorMessage); hr = frame->SetSize(static_cast<UINT>(width), static_cast<UINT>(height)); if (FAILED(hr)) return Fail("IWICBitmapFrameEncode::SetSize", hr, errorMessage);
+	WICPixelFormatGUID format = GUID_WICPixelFormat32bppBGRA; hr = frame->SetPixelFormat(&format); if (FAILED(hr) || !IsEqualGUID(format, GUID_WICPixelFormat32bppBGRA)) return Fail("IWICBitmapFrameEncode::SetPixelFormat", FAILED(hr) ? hr : WINCODEC_ERR_UNSUPPORTEDPIXELFORMAT, errorMessage); hr = frame->WriteSource(bitmap.get(), nullptr); if (FAILED(hr)) return Fail("IWICBitmapFrameEncode::WriteSource", hr, errorMessage); hr = frame->Commit(); if (FAILED(hr)) return Fail("IWICBitmapFrameEncode::Commit", hr, errorMessage); hr = encoder->Commit(); if (FAILED(hr)) return Fail("IWICBitmapEncoder::Commit", hr, errorMessage); return true;
 }
+}
+
+#endif // defined(_WIN32)
