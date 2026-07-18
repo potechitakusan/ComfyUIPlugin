@@ -3,10 +3,15 @@ set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 if [ -d "$ROOT/dist/ComfyUIPlugin" ]; then
-    # Development repository layout.
-    PROJECT_ROOT=$(CDPATH= cd -- "$ROOT/.." && pwd)
     SOURCE="$ROOT/dist/ComfyUIPlugin"
-elif [ -f "$ROOT/ComfyUIPlugin.cpm" ]; then
+    if [ -f "$ROOT/build.sh" ]; then
+        # Development repository layout: forMac is below the project root.
+        PROJECT_ROOT=$(CDPATH= cd -- "$ROOT/.." && pwd)
+    else
+        # Release layout: input and examples are alongside install.sh.
+        PROJECT_ROOT="$ROOT"
+    fi
+elif [ -e "$ROOT/ComfyUIPlugin.cpm" ]; then
     # Self-contained release layout created by release.sh.
     PROJECT_ROOT="$ROOT"
     SOURCE="$ROOT"
