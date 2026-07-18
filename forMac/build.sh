@@ -3,6 +3,7 @@ set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 SHARED_SRC=$(CDPATH= cd -- "$ROOT/../src" && pwd)
+PROJECT_ROOT=$(CDPATH= cd -- "$ROOT/.." && pwd)
 BUILD_DIR="$ROOT/build"
 DIST_DIR="$ROOT/dist/ComfyUIPlugin"
 SDK=$(xcrun --sdk macosx --show-sdk-path)
@@ -44,12 +45,26 @@ build_bundle() {
     codesign --force --sign - "$bundle"
 }
 
+convert_ini_to_utf8() {
+    input=$1
+    output=$2
+    if ! iconv -f CP932 -t UTF-8 "$input" > "$output"; then
+        echo "INI ファイルの UTF-8 変換に失敗しました: $input" >&2
+        exit 1
+    fi
+}
+
 mkdir -p "$DIST_DIR/SubImage"
 build_bundle ComfyUIPlugin standard
 build_bundle ComfyUINanoBananaPlugin banana
 
-cp "$SHARED_SRC/ComfyUIPlugin.ini" "$SHARED_SRC/UserSetting.ini" "$DIST_DIR/"
-cp "$ROOT/resources/empty.png" "$ROOT/resources"/template_*.json "$DIST_DIR/"
+convert_ini_to_utf8 "$SHARED_SRC/ComfyUIPlugin.ini" "$DIST_DIR/ComfyUIPlugin.ini"
+convert_ini_to_utf8 "$SHARED_SRC/UserSetting.ini" "$DIST_DIR/UserSetting.ini"
+cp "$PROJECT_ROOT/input/empty.png" "$DIST_DIR/"
+for template in "$PROJECT_ROOT"/template_*.json; do
+    [ -f "$template" ] || continue
+    cp "$template" "$DIST_DIR/"
+done
 dot_clean -m "$DIST_DIR"
 
 echo "Built: $DIST_DIR"

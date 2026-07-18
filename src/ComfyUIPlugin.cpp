@@ -613,6 +613,41 @@ std::wstring replace_all(std::wstring str, const std::wstring& from, const std::
     return str;
 }
 
+#if defined(__APPLE__)
+// Windows 版で出力したテンプレートは filename_prefix 内の区切り文字を
+// JSON エスケープした "\\\\" として保存している場合がある。ComfyUI を
+// macOS で実行するときだけ、その値を POSIX 形式へ正規化する。
+static std::string NormalizeFilenamePrefixSeparatorsForMac(std::string json) {
+	const std::string filenamePrefix = "\"filename_prefix\"";
+	size_t fieldPosition = 0;
+	while ((fieldPosition = json.find(filenamePrefix, fieldPosition)) != std::string::npos) {
+		auto valuePosition = json.find(':', fieldPosition + filenamePrefix.length());
+		if (valuePosition == std::string::npos) break;
+		valuePosition = json.find_first_not_of(" \t\r\n", valuePosition + 1);
+		if (valuePosition == std::string::npos || json[valuePosition] != '"') {
+			fieldPosition += filenamePrefix.length();
+			continue;
+		}
+
+		++valuePosition;
+		while (valuePosition < json.size() && json[valuePosition] != '"') {
+			if (json[valuePosition] != '\\') {
+				++valuePosition;
+				continue;
+			}
+			if (valuePosition + 1 < json.size() && json[valuePosition + 1] == '\\') {
+				json.replace(valuePosition, 2, "/");
+				++valuePosition;
+			} else {
+				valuePosition += 2;
+			}
+		}
+		fieldPosition = valuePosition;
+	}
+	return json;
+}
+#endif
+
 /**
  * ワークフローをComfyUIサーバーのキューに送信する
  * @param prompt_json ワークフローのJSON文字列
@@ -835,27 +870,45 @@ static std::string GetUserIniPath()
 /// @return COMMON以外のセクションを返す
 static std::vector<std::string> GetIniSectionsFromFile(const std::string& iniPath, std::string mode)
 {
-		if (iniPath.empty()) {
-			return {};
-		}
+	if (iniPath.empty()) {
+		return {};
+	}
+	std::vector<std::string> sectionNames;
+#if defined(_WIN32)
 		char sections[4096];
 		GetPrivateProfileSectionNamesA(sections, sizeof(sections), iniPath.c_str());
 		char *section = sections;
-		std::vector<std::string> result;
 		while (*section != NULL)
 		{
-			std::string name = section;
-			if (name != "COMMON") {
-				if (mode != "") {
-					print(("mode :" + mode + ", " + name).c_str());
-					if (name.find(mode) != std::string::npos) result.push_back(name);
-				} else {
-					result.push_back(name);
-				}
-			}
+			sectionNames.emplace_back(section);
 			section += strlen(section) + 1;
 		}
-		return result;
+#else
+	std::ifstream file(iniPath);
+	std::string line;
+	while (std::getline(file, line)) {
+		const auto first = line.find_first_not_of(" \t\r");
+		if (first == std::string::npos || line[first] == ';' || line[first] == '#') continue;
+		if (line[first] != '[') continue;
+		const auto end = line.find(']', first + 1);
+		if (end == std::string::npos) continue;
+		const auto nameEnd = line.find_last_not_of(" \t\r", end - 1);
+		if (nameEnd != std::string::npos && nameEnd >= first + 1) {
+			sectionNames.push_back(line.substr(first + 1, nameEnd - first));
+		}
+	}
+#endif
+	std::vector<std::string> result;
+	for (const auto& name : sectionNames) {
+		if (name == "COMMON") continue;
+		if (!mode.empty()) {
+			print(("mode :" + mode + ", " + name).c_str());
+			if (name.find(mode) != std::string::npos) result.push_back(name);
+		} else {
+			result.push_back(name);
+		}
+	}
+	return result;
 }
 
 /// @brief 複数iniファイルのセクションを結合（ユーザー設定を優先）
@@ -983,15 +1036,53 @@ std::string iniGetString(const std::string& filePath, const std::string& section
 	if (filePath.empty()) {
 		return "";
 	}
+#if defined(_WIN32)
 	char buf[MAX_PATH] = {};
 	GetPrivateProfileStringA(section.c_str(), key.c_str(), "", buf, MAX_PATH, filePath.c_str());
 	auto text = std::string(buf);
+#else
+	auto trim = [](const std::string& value) {
+		const auto first = value.find_first_not_of(" \t\r");
+		if (first == std::string::npos) return std::string{};
+		return value.substr(first, value.find_last_not_of(" \t\r") - first + 1);
+	};
+	auto equalsIgnoreCase = [](const std::string& left, const std::string& right) {
+		if (left.size() != right.size()) return false;
+		for (size_t i = 0; i < left.size(); ++i) {
+			if (std::tolower(static_cast<unsigned char>(left[i])) != std::tolower(static_cast<unsigned char>(right[i]))) return false;
+		}
+		return true;
+	};
+
+	std::ifstream file(filePath);
+	std::string text;
+	std::string currentSection;
+	std::string line;
+	while (std::getline(file, line)) {
+		const auto content = trim(line);
+		if (content.empty() || content[0] == ';' || content[0] == '#') continue;
+		if (content[0] == '[') {
+			const auto end = content.find(']');
+			currentSection = end == std::string::npos ? "" : trim(content.substr(1, end - 1));
+			continue;
+		}
+		if (!equalsIgnoreCase(currentSection, section)) continue;
+		const auto separator = content.find('=');
+		if (separator == std::string::npos) continue;
+		if (equalsIgnoreCase(trim(content.substr(0, separator)), key)) {
+			text = trim(content.substr(separator + 1));
+			break;
+		}
+	}
+#endif
 
 	// コメント削除
 	auto commentPos = text.find_first_of("#;");
 	if (commentPos != std::string::npos) {
 		text.erase(commentPos);
 	}
+	while (!text.empty() && std::isspace(static_cast<unsigned char>(text.back()))) text.pop_back();
+	if (text.size() >= 2 && text.front() == '"' && text.back() == '"') text = text.substr(1, text.size() - 2);
 
 	return text;
 }
@@ -1773,6 +1864,9 @@ bool RunFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data, std::strin
 		for (size_t i = 0; i < kSubImageDropdownCount; ++i) {
 			prompt_modified = replace_all(prompt_modified, kSubImageMarkers[i], subImageUploadFileNames[i]);
 		}
+		#if defined(__APPLE__)
+		prompt_modified = NormalizeFilenamePrefixSeparatorsForMac(prompt_modified);
+		#endif
 		
 		print("Replace finished.");
 
