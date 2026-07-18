@@ -1,55 +1,50 @@
 @echo off
-chcp 932
+setlocal EnableExtensions DisableDelayedExpansion
 
-set APP_NAME=ComfyUIPlugin
+set "SCRIPT_DIR=%~dp0"
+set "APP_NAME=ComfyUIPlugin"
 
-:RESTART
-echo ------------------------------------------------------------
-echo プラグインのインストール先は、CLIP Studioのバージョンによって違います。
-echo お使いのバージョンが「1.10.13」以降であれば「1」を、それより古い場合は「2」を入力してください。
-echo ------------------------------------------------------------
-set /p VER="バージョン確認: "
-IF %VER% == 1 (
-	set APP_DIR=%USERPROFILE%\AppData\Roaming\CELSYSUserData\CELSYS\CLIPStudioModule\PlugIn\PAINT\%APP_NAME%\
-) ELSE IF %VER% == 2 (
-	set APP_DIR=%USERPROFILE%\Documents\CELSYS\CLIPStudioModule\PlugIn\PAINT\%APP_NAME%\
-) ELSE (
-	GOTO RESTART
-)
-
-echo ------------------------------------------------------------
-echo プラグインをプラグイン用フォルダにインストールします。
-echo アンインストールする時はフォルダごと削除してください。
-echo インストール先：  %APP_DIR%
-echo ------------------------------------------------------------
-pause
-
-echo フォルダ作成...
-mkdir %APP_DIR%
-
-echo プラグインをコピー...
-copy /Y ComfyUIPlugin.cpm %APP_DIR%
-copy /Y ComfyUINanoBananaPlugin.cpm %APP_DIR%
-
-echo 設定ファイルをコピー...
-copy /Y ComfyUIPlugin.ini %APP_DIR%
-
-echo Pythonスクリプトをコピー...
-copy /Y bmp_to_png.bat %APP_DIR%
-copy /Y bmp_to_png.py %APP_DIR%
-copy /Y png_to_bmp.bat %APP_DIR%
-copy /Y png_to_bmp.py %APP_DIR%
-mkdir %APP_DIR%\SubImage
-copy /Y SubImage %APP_DIR%\SubImage
-
-if exist "%APP_DIR%UserSetting.ini" (
-    echo UserSetting.ini は既に存在します。
+echo.
+echo CLIP STUDIO PAINT version:
+echo   1. Version 1.10.13 or later
+echo   2. Older version
+choice /c 12 /n /m "Select 1 or 2"
+if errorlevel 2 (
+    set "APP_DIR=%USERPROFILE%\Documents\CELSYS\CLIPStudioModule\PlugIn\PAINT\%APP_NAME%"
 ) else (
-    echo UserSetting.ini が存在しません。コピーします…
-    copy /Y UserSetting.ini "%APP_DIR%UserSetting.ini"
+    set "APP_DIR=%APPDATA%\CELSYSUserData\CELSYS\CLIPStudioModule\PlugIn\PAINT\%APP_NAME%"
 )
-	
-echo ------------------------------------------------------------
-echo インストール完了
-echo ------------------------------------------------------------
+
+echo.
+echo Installing to: %APP_DIR%
+if not exist "%APP_DIR%\" mkdir "%APP_DIR%"
+if not exist "%APP_DIR%\SubImage\" mkdir "%APP_DIR%\SubImage"
+
+for %%F in (
+    "ComfyUIPlugin.cpm"
+    "ComfyUINanoBananaPlugin.cpm"
+    "ComfyUIPlugin.ini"
+    "bmp_to_png.bat"
+    "bmp_to_png.py"
+    "png_to_bmp.bat"
+    "png_to_bmp.py"
+) do (
+    if not exist "%SCRIPT_DIR%%%~F" (
+        echo Error: Required file was not found: %%~F
+        goto :END
+    )
+    copy /Y "%SCRIPT_DIR%%%~F" "%APP_DIR%\" >nul
+)
+
+if exist "%SCRIPT_DIR%SubImage\*" xcopy /E /I /Y "%SCRIPT_DIR%SubImage" "%APP_DIR%\SubImage" >nul
+if exist "%APP_DIR%\UserSetting.ini" (
+    echo Existing UserSetting.ini was kept.
+) else (
+    copy /Y "%SCRIPT_DIR%UserSetting.ini" "%APP_DIR%\UserSetting.ini" >nul
+)
+
+echo Plugin installation completed.
+
+:END
 pause
+endlocal

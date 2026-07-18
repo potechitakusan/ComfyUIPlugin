@@ -2,16 +2,22 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-PROJECT_ROOT=$(CDPATH= cd -- "$ROOT/.." && pwd)
-SOURCE="$ROOT/dist/ComfyUIPlugin"
+if [ -d "$ROOT/dist/ComfyUIPlugin" ]; then
+    # Development repository layout.
+    PROJECT_ROOT=$(CDPATH= cd -- "$ROOT/.." && pwd)
+    SOURCE="$ROOT/dist/ComfyUIPlugin"
+elif [ -f "$ROOT/ComfyUIPlugin.cpm" ]; then
+    # Self-contained release layout created by release.sh.
+    PROJECT_ROOT="$ROOT"
+    SOURCE="$ROOT"
+else
+    echo "プラグインのビルド済みファイルが見つかりません。先に ./build.sh を実行してください。" >&2
+    exit 1
+fi
 DESTINATION=${1:-"$HOME/Library/CELSYS/CLIPStudioModule/PlugIn/PAINT/ComfyUIPlugin"}
 EASY_INSTALL_REPOSITORY="https://github.com/Tavris1/ComfyUI-Easy-Install.git"
 EXPORTER_REPOSITORY="https://github.com/potechitakusan/ComfyUI_CCP_API_Exporter.git"
 
-if [ ! -d "$SOURCE" ]; then
-    echo "dist がありません。先に ./build.sh を実行してください。" >&2
-    exit 1
-fi
 
 ask_comfyui_path() {
     while :; do
