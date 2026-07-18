@@ -118,8 +118,6 @@ ditto "$SOURCE/ComfyUINanoBananaPlugin.cpm" "$DESTINATION/ComfyUINanoBananaPlugi
 
 echo "設定を上書きしています..."
 cp -f "$SOURCE/ComfyUIPlugin.ini" "$DESTINATION/ComfyUIPlugin.ini"
-# (no image) 選択時に必要なプレースホルダー。SubImage は既存の内容を保持する。
-cp -f "$SOURCE/empty.png" "$DESTINATION/empty.png"
 
 if [ -f "$DESTINATION/UserSetting.ini" ]; then
     echo "UserSetting.ini は既存のファイルを保持します。"

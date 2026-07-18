@@ -60,7 +60,6 @@ build_bundle ComfyUINanoBananaPlugin banana
 
 convert_ini_to_utf8 "$SHARED_SRC/ComfyUIPlugin.ini" "$DIST_DIR/ComfyUIPlugin.ini"
 convert_ini_to_utf8 "$SHARED_SRC/UserSetting.ini" "$DIST_DIR/UserSetting.ini"
-cp "$PROJECT_ROOT/input/empty.png" "$DIST_DIR/"
 for template in "$PROJECT_ROOT"/template_*.json; do
     [ -f "$template" ] || continue
     cp "$template" "$DIST_DIR/"
