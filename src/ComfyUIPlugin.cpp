@@ -13,14 +13,30 @@
 #include <iomanip>
 #include <array>
 #include <algorithm>
+#include <cctype>
 #include <wchar.h> // ワイド文字用（日本語フォルダ用を想定したがなくても良いかも）
 #include <chrono>  // sleep_for
 #include <thread>  // sleep_for
+#include <vector>
+
+#if defined(__APPLE__)
+#include <codecvt>
+#include <dlfcn.h>
+#include <locale>
+#include <sys/wait.h>
+#endif
 
 #include "ComfyUIPlugin.h"
+#include "ComvertImage.h"
 #include "FilterPlugIn.h"
 
 using namespace ComfyUIPlugin;
+
+#if defined(__APPLE__)
+#define COMFYUI_EXPORT extern "C" __attribute__((visibility("default")))
+#else
+#define COMFYUI_EXPORT extern "C" __declspec(dllexport)
+#endif
 
 #ifndef COMFYUI_INCLUDE_DEFAULT_ENTRYPOINT
 #define COMFYUI_INCLUDE_DEFAULT_ENTRYPOINT 1
@@ -105,6 +121,9 @@ std::string g_APIKey;
 int g_RetryMaxCount;
 int g_RetryWaitSeconds;
 
+/// trueの場合は従来のbat/Pythonによる画像変換を使用する。
+bool g_UsePythonImageConversion = false;
+
 /// temp_post.jsonの書き出し先
 std::string g_TempPostJsonPath;
 
@@ -127,10 +146,12 @@ struct Params {
 
 /// フィルター情報
 struct FilterInfo {
-	FilterPlugIn::Server const* server;
+	FilterPlugIn::Server const* server = nullptr;
 	Params params;
-	int setting;
-	std::array<int, kSubImageDropdownCount> subimage_indices;
+	int setting = -1;
+	std::array<int, kSubImageDropdownCount> subimage_indices{};
+	bool use_selection_as_mask = false;
+	// bool outpaint_transparent_area = false; // Temporarily disabled.
 };
 
 
@@ -155,6 +176,7 @@ public:
 
 		// 全ピクセル分のバイトを一度に割り当て
 		data_buffer_ = std::make_unique<unsigned char[]>(total_bytes);
+		std::fill_n(data_buffer_.get(), total_bytes, static_cast<unsigned char>(0));
 	}
 
 	int get_width()  const { return width_; }
@@ -201,11 +223,66 @@ public:
 
 
 void Transfer(const FilterPlugIn::Block& dst, const class ImageBuffer& src, const FilterPlugIn::Block& alpha);
+// void TransferForOutpaint(const FilterPlugIn::Block& dst, const class ImageBuffer& src, const FilterPlugIn::Block& alpha); // Temporarily disabled.
 void Transfer(const ImageBuffer& dst, const FilterPlugIn::Block& src, int offsetY, int offsetX);
 void Transfer(const FilterPlugIn::Block& dst, const class ImageBuffer& src, const FilterPlugIn::Block& alpha, const FilterPlugIn::Block& select);
+static bool GetFullLayerRect(FilterPlugIn::Offscreen& offscreen, FilterPlugIn::Rect& layerRect) {
+	// Depending on the host context, one of these rectangles can be clipped to
+	// the selection.  Use their union so that a canvas-sized rectangle returned
+	// by either API is preserved for selection-mask uploads.
+	const FilterPlugIn::Rect rect = offscreen.GetRect();
+	const FilterPlugIn::Rect extentRect = offscreen.GetExtentRect();
+	const bool hasRect = !FilterPlugIn::isRectEmpty(rect);
+	const bool hasExtentRect = !FilterPlugIn::isRectEmpty(extentRect);
+	if (hasRect && hasExtentRect) {
+		layerRect = {
+			std::min(rect.left, extentRect.left), std::min(rect.top, extentRect.top),
+			std::max(rect.right, extentRect.right), std::max(rect.bottom, extentRect.bottom)
+		};
+		return true;
+	}
+	if (hasRect) { layerRect = rect; return true; }
+	if (hasExtentRect) { layerRect = extentRect; return true; }
+
+	// Keep the previous block-based path only as a compatibility fallback.
+	constexpr int kCanvasQueryLimit = 1000000;
+	const FilterPlugIn::Rect queryRect = { 0, 0, kCanvasQueryLimit, kCanvasQueryLimit };
+	const auto blocks = offscreen.GetBlockRects(queryRect); if (blocks.empty()) return false;
+	layerRect = blocks.front(); for (const auto& block : blocks) { layerRect.left = std::min(layerRect.left, block.left); layerRect.top = std::min(layerRect.top, block.top); layerRect.right = std::max(layerRect.right, block.right); layerRect.bottom = std::max(layerRect.bottom, block.bottom); }
+	return !FilterPlugIn::isRectEmpty(layerRect);
+}
+static void CopyImageToRgba(const ImageBuffer& image, std::vector<unsigned char>& rgba, unsigned char initialAlpha = 255) {
+	const auto width = image.get_width(); const auto height = image.get_height(); rgba.resize(static_cast<size_t>(width) * static_cast<size_t>(height) * 4);
+	for (int y = 0; y < height; ++y) for (int x = 0; x < width; ++x) { const auto offset = (static_cast<size_t>(y) * width + x) * 4; rgba[offset] = image.get_pixel_value(x, y, 2); rgba[offset + 1] = image.get_pixel_value(x, y, 1); rgba[offset + 2] = image.get_pixel_value(x, y, 0); rgba[offset + 3] = initialAlpha; }
+}
+
+// 非矩形の選択範囲では選択範囲オフスクリーン API を使わず、外接矩形をマスクとして扱う。
+static void ApplyRectangleSelectionMask(const FilterPlugIn::Rect& selectionRect, const FilterPlugIn::Rect& imageRect, std::vector<unsigned char>& rgba) {
+	const auto maskRect = FilterPlugIn::intersectRects(selectionRect, imageRect); if (FilterPlugIn::isRectEmpty(maskRect)) return;
+	const int imageWidth = imageRect.right - imageRect.left;
+	for (int y = maskRect.top; y < maskRect.bottom; ++y) for (int x = maskRect.left; x < maskRect.right; ++x) rgba[(static_cast<size_t>(y - imageRect.top) * imageWidth + (x - imageRect.left)) * 4 + 3] = 0;
+}
+
+// レイヤーのアルファを PNG にコピーする。ComfyUI の Load Image は透明部分をマスクとして扱う。
+#if 0 // Temporarily disabled outpaint alpha-mask implementation.
+static bool CopyLayerAlphaToRgba(FilterPlugIn::Offscreen& source, const FilterPlugIn::Rect& imageRect, std::vector<unsigned char>& rgba) {
+	// ソースブロック外は透明（ComfyUI のマスク対象）として開始する。
+	for (size_t offset = 3; offset < rgba.size(); offset += 4) rgba[offset] = 0;
+	const int imageWidth = imageRect.right - imageRect.left;
+	for (const auto& rect : source.GetBlockRects(imageRect)) {
+		const auto block = source.GetBlockAlpha(rect); const auto copyRect = FilterPlugIn::intersectRects(imageRect, block.rect);
+		if (FilterPlugIn::isRectEmpty(copyRect)) continue;
+		if (!block.address || block.pixelBytes <= 0 || block.rowBytes <= 0) return false;
+		pbyte_t row = static_cast<pbyte_t>(block.address) + FilterPlugIn::addressOffset(block, copyRect);
+		for (int y = copyRect.top; y < copyRect.bottom; ++y) { pbyte_t pixel = row; for (int x = copyRect.left; x < copyRect.right; ++x) { rgba[(static_cast<size_t>(y - imageRect.top) * imageWidth + (x - imageRect.left)) * 4 + 3] = *pixel; pixel += block.pixelBytes; } row += block.rowBytes; }
+	}
+	return true;
+}
 
 
 // パラメーター実体
+#endif
+
 Params g_params;
 
 /// 設定リスト（サブウィンドウの先頭のドロップダウン）
@@ -217,142 +294,66 @@ std::vector<std::string> g_SubImages;
 /// ユーザー設定ファイルの有無
 bool g_HasUserSettingIni = false;
 
+static FILE* OpenFile(const std::string& path, const char* mode) {
+#if defined(_WIN32)
+	FILE* file = nullptr; fopen_s(&file, path.c_str(), mode); return file;
+#else
+	return std::fopen(path.c_str(), mode);
+#endif
+}
+
 /// デバッグ出力の開始
 void InitDebugOutput(const std::string& basePath) {
 	g_DebugPath = basePath + "debuglog.txt";
-	FILE* fp = nullptr;
-	fopen_s(&fp, g_DebugPath.c_str(), "w");
-	if (fp) fclose(fp);
-
-	// Python用のdebuglogは .bat や .py から出力する。ここはファイルのクリアのみ。
-	FILE* fp2 = nullptr;
-	fopen_s(&fp2, (basePath + "debuglog_py.txt").c_str(), "w");
-	if (fp2) fclose(fp2);
+	if (FILE* fp = OpenFile(g_DebugPath, "w")) std::fclose(fp);
+	if (FILE* fp = OpenFile(basePath + "debuglog_py.txt", "w")) std::fclose(fp);
 }
 
 /// デバッグ出力
 /// @note ホストアプリがデバッガを嫌うから原始的なファイル出力で
 void print(const char* format, ...) {
 	if (g_DebugPath.empty()) return;
-	FILE* fp = nullptr;
-	fopen_s(&fp, g_DebugPath.c_str(), "a");
-	if (fp) {
-		va_list arg;
-		va_start(arg, format);
-		vfprintf(fp, format, arg);
-		va_end(arg);
-		fputs("\n", fp);
-		fclose(fp);
-	}
+	if (FILE* fp = OpenFile(g_DebugPath, "a")) { va_list arg; va_start(arg, format); std::vfprintf(fp, format, arg); va_end(arg); std::fputs("\n", fp); std::fclose(fp); }
 }
 
 /// デバッグ出力（wstring用）
 void print(const wchar_t* format, ...) {
 	if (g_DebugPath.empty()) return;
-	FILE* fp = nullptr;
-	fopen_s(&fp, g_DebugPath.c_str(), "a");
-	if (fp) {
-		va_list arg;
-		va_start(arg, format);
-		vfwprintf(fp, format, arg);
-		va_end(arg);
-		fputs("\n", fp);
-		fclose(fp);
-	}
+	if (FILE* fp = OpenFile(g_DebugPath, "a")) { va_list arg; va_start(arg, format); std::vfwprintf(fp, format, arg); va_end(arg); std::fputws(L"\n", fp); std::fclose(fp); }
 }
 
 // curlでPOSTするためにjsonをファイルに書き出し
-void write_json_to_temp(const char* jsonstr, std::string tempPostJsonPath, ...) {
-	FILE* fp = nullptr;
+void write_json_to_temp(const char* jsonstr, const std::string& tempPostJsonPath) {
 	std::remove(tempPostJsonPath.c_str());
-	fopen_s(&fp, tempPostJsonPath.c_str(), "w");
-	if (fp) {
-		va_list arg;
-		va_start(arg, jsonstr);
-		vfprintf(fp, jsonstr, arg);
-		va_end(arg);
-		fputs("\n", fp);
-		fclose(fp);
-	}
+	if (FILE* fp = OpenFile(tempPostJsonPath, "w")) { std::fputs(jsonstr, fp); std::fputs("\n", fp); std::fclose(fp); }
+}
+#if defined(_WIN32)
+std::wstring ShiftJIS_to_UTF16(const std::string& str) {
+	const int len = MultiByteToWideChar(CP_ACP, 0, str.c_str(), -1, nullptr, 0); if (len <= 0) return {};
+	std::wstring result(static_cast<size_t>(len - 1), L'\0'); MultiByteToWideChar(CP_ACP, 0, str.c_str(), -1, result.data(), len); return result;
+}
+#else
+std::u16string ShiftJIS_to_UTF16(const std::string& str) {
+	try { return std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>{}.from_bytes(str); }
+	catch (...) { return std::u16string(str.begin(), str.end()); }
+}
+#endif
+
+static std::string shellQuote(const std::string& value) {
+	std::string result = "'"; for (char ch : value) result += ch == '\'' ? "'\\''" : std::string(1, ch); return result + "'";
 }
 
-
-/// @brief 文字列のUNICODE化
-/// @param str ShiftJIS文字列
-/// @return UNICODE文字列
-std::wstring ShiftJIS_to_UTF16(const std::string& str)
-{
-    static_assert(sizeof(wchar_t) == 2, "for windows only");
-    const int len = MultiByteToWideChar(CP_ACP, 0, str.c_str(), -1, NULL, 0);
-    std::vector<wchar_t> result(len, L'\0');
-    MultiByteToWideChar(CP_ACP, 0, str.c_str(), -1, &result[0], len);
-    return &result[0];
-}
-
-/// @brief 文字列のUNICODE化
-/// @param str ShiftJIS文字列
-/// @return UNICODE文字列
-std::string UTF16_to_UTF8(const std::wstring& utf16str)
-{
-    // 変換後のchar配列の要素数(null終端を含む)を取得
-    int size = WideCharToMultiByte(CP_UTF8, 0, utf16str.c_str(), -1, nullptr, 0, nullptr, nullptr);
-
-    std::string utf8str(size - 1, '\0');
-
-    // 変換
-    WideCharToMultiByte(CP_UTF8, 0, utf16str.c_str(), -1, &utf8str[0], size - 1, nullptr, nullptr);
-
-    return utf8str;
-}
-
-/// @brief コマンドプロンプトを表示せずに実行
-/// @param command 
-/// @return 
-int exe_command_silent(std::string command) {
-    // プロセス起動情報
-    STARTUPINFOW si;
-    PROCESS_INFORMATION pi;
-    ZeroMemory(&si, sizeof(si));
-    si.cb = sizeof(si);
-
-    // コンソールウィンドウを表示しない設定
-    si.dwFlags = STARTF_USESHOWWINDOW;
-    si.wShowWindow = SW_HIDE;  // 非表示
-
-    ZeroMemory(&pi, sizeof(pi));
-
-    // cmd.exe /C を使ってコマンドを一回実行
-    std::wstring cmdLine = L"cmd.exe /C " + ShiftJIS_to_UTF16(command);
-
-    BOOL result = CreateProcessW(
-        nullptr,
-        &cmdLine[0],
-        nullptr,
-        nullptr,
-        FALSE,
-        CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT, // ★ここがポイント
-        nullptr,
-        ShiftJIS_to_UTF16(g_BasePath).c_str(),
-        &si,
-        &pi
-    );
-
-    if (!result) {
-        std::wcerr << L"プロセス作成失敗: " << GetLastError() << std::endl;
-        return 1;
-    }
-
-    // コマンド完了を待機
-    WaitForSingleObject(pi.hProcess, INFINITE);
-
-    // 終了コード確認
-    DWORD exitCode = 0;
-    GetExitCodeProcess(pi.hProcess, &exitCode);
-    std::wcout << L"完了 (ExitCode=" << exitCode << L")" << std::endl;
-
-    CloseHandle(pi.hProcess);
-    CloseHandle(pi.hThread);
-    return 0;
+/// @brief コマンドを実行し、終了コードを返す。
+int exe_command_silent(const std::string& command) {
+#if defined(_WIN32)
+	STARTUPINFOW si{}; PROCESS_INFORMATION pi{}; si.cb = sizeof(si); si.dwFlags = STARTF_USESHOWWINDOW; si.wShowWindow = SW_HIDE;
+	std::wstring cmdLine = L"cmd.exe /C " + ShiftJIS_to_UTF16(command);
+	if (!CreateProcessW(nullptr, cmdLine.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT, nullptr, ShiftJIS_to_UTF16(g_BasePath).c_str(), &si, &pi)) { print("CreateProcessW failed: %lu", GetLastError()); return 1; }
+	WaitForSingleObject(pi.hProcess, INFINITE); DWORD exitCode = 1; GetExitCodeProcess(pi.hProcess, &exitCode); CloseHandle(pi.hProcess); CloseHandle(pi.hThread); return static_cast<int>(exitCode);
+#else
+	const int status = std::system(("cd " + shellQuote(g_BasePath) + " && " + command).c_str());
+	return status == -1 ? 1 : (WIFEXITED(status) ? WEXITSTATUS(status) : 1);
+#endif
 }
 /**
  * @brief HTTP GETリクエストを実行し、レスポンスをファイルに保存
@@ -380,7 +381,7 @@ bool http_post_file_to_file(const std::string& url, const std::string& data_file
     // Windowsで実行する前提として、curlを利用し、JSONをPOST
     std::string command = "curl -s -X POST -H \"Content-Type: application/json\" -d @" + data_filename + " -o " + output_filename + " \"" + url + "\"";
     print(("POST Command: " + command).c_str());
-	int result = std::system(command.c_str());
+	int result = exe_command_silent(command);
     print(("curl POST command returns :" + std::to_string(result)).c_str());
     return true;
 }
@@ -396,29 +397,46 @@ bool http_post_image_to_file(const std::string& url, const std::string& image_fi
     // Windowsで実行する前提として、curlを利用し、JSONをPOST
     std::string command = "curl -s -X POST -F \"image=@" + image_filepath + ";filename=" + image_filename + "\" -o " + output_filename + " \"" + url + "\"";
     print(("POST Command: " + command).c_str());
-	int result = std::system(command.c_str());
+	int result = exe_command_silent(command);
     print(("curl POST command returns :" + std::to_string(result)).c_str());
     return true;
 }
 
+static void LogImageConversionFailure(const char* conversion, const std::string& errorMessage) {
+	print("IMAGE_CONVERSION_FAILED: %s (%s)", conversion, errorMessage.c_str());
+#if defined(_WIN32)
+	print("Windows native image conversion failed. To use the Python conversion, set use_python_image_conversion = \"true\" in UserSetting.ini and configure Python PATH in the .bat files.");
+#else
+	print("macOS ImageIO/CoreGraphics image conversion failed.");
+#endif
+}
 bool call_png_to_bmp() {
-    std::string command = g_BasePath + "png_to_bmp.bat";
-    if (std::system(command.c_str()) != 0) {
-        print("Error: png_to_bmp command failed.");
-        return false;
-    }
-    return true;
+#if defined(_WIN32)
+	if (g_UsePythonImageConversion) {
+		if (exe_command_silent(g_BasePath + "png_to_bmp.bat") != 0) { print("Error: png_to_bmp command failed."); return false; }
+		return true;
+	}
+#endif
+	std::string errorMessage;
+	const bool converted = ComvertImage::PngToBmp(g_BasePath + "temp_img_res.png", g_BasePath + "temp_img_res.bmp", &errorMessage);
+	if (!converted) LogImageConversionFailure("PNG to BMP", errorMessage);
+	return converted;
 }
 
-bool call_bmp_to_png(std::string imagePath) {
-    std::string command = g_BasePath + "bmp_to_png.bat " + imagePath;
-    if (std::system(command.c_str()) != 0) {
-        print("Error: bmp_to_png command failed.");
-        return false;
-    }
-    return true;
+bool call_bmp_to_png(const std::string& imagePath) {
+#if defined(_WIN32)
+	if (g_UsePythonImageConversion) {
+		if (exe_command_silent(g_BasePath + "bmp_to_png.bat " + imagePath) != 0) { print("Error: bmp_to_png command failed."); return false; }
+		return true;
+	}
+#endif
+	const std::filesystem::path inputPath = std::filesystem::path(g_BasePath) / imagePath;
+	auto outputPath = inputPath; outputPath.replace_extension(".png");
+	std::string errorMessage;
+	const bool converted = ComvertImage::BmpToPng(inputPath.string(), outputPath.string(), &errorMessage);
+	if (!converted) LogImageConversionFailure("BMP to PNG", errorMessage);
+	return converted;
 }
-
 /**
  * @brief ワークフローをComfyUIに投げて実行する関数 (run_workflowの代替)
  * * @param workflow_json_path 変更後のワークフローJSONファイルパス
@@ -543,20 +561,16 @@ std::wstring read_file_to_wstring(const std::string& path) {
     return buffer.str();
 }
 
-std::string ansi_to_utf8(const std::string& ansi_str) {
-    // ANSIからUTF-16 (WideChar)に変換
-    int wide_len = MultiByteToWideChar(CP_ACP, 0, ansi_str.c_str(), -1, nullptr, 0);
-    std::vector<wchar_t> wide_chars(wide_len);
-    MultiByteToWideChar(CP_ACP, 0, ansi_str.c_str(), -1, wide_chars.data(), wide_len);
-
-    // UTF-16からUTF-8に変換
-    int utf8_len = WideCharToMultiByte(CP_UTF8, 0, wide_chars.data(), -1, nullptr, 0, nullptr, nullptr);
-    std::vector<char> utf8_chars(utf8_len);
-    WideCharToMultiByte(CP_UTF8, 0, wide_chars.data(), -1, utf8_chars.data(), utf8_len, nullptr, nullptr);
-
-    return std::string(utf8_chars.data());
+std::string ansi_to_utf8(const std::string& value) {
+#if defined(_WIN32)
+	const int wideLength = MultiByteToWideChar(CP_ACP, 0, value.c_str(), -1, nullptr, 0); if (wideLength <= 0) return value;
+	std::vector<wchar_t> wide(static_cast<size_t>(wideLength)); MultiByteToWideChar(CP_ACP, 0, value.c_str(), -1, wide.data(), wideLength);
+	const int utf8Length = WideCharToMultiByte(CP_UTF8, 0, wide.data(), -1, nullptr, 0, nullptr, nullptr); if (utf8Length <= 0) return value;
+	std::string utf8(static_cast<size_t>(utf8Length - 1), '\0'); WideCharToMultiByte(CP_UTF8, 0, wide.data(), -1, utf8.data(), utf8Length, nullptr, nullptr); return utf8;
+#else
+	return value;
+#endif
 }
-
 /**
  * 文字列内の特定のマーカーを置換する
  * @param str 元の文字列
@@ -598,6 +612,41 @@ std::wstring replace_all(std::wstring str, const std::wstring& from, const std::
     }
     return str;
 }
+
+#if defined(__APPLE__)
+// Windows 版で出力したテンプレートは filename_prefix 内の区切り文字を
+// JSON エスケープした "\\\\" として保存している場合がある。ComfyUI を
+// macOS で実行するときだけ、その値を POSIX 形式へ正規化する。
+static std::string NormalizeFilenamePrefixSeparatorsForMac(std::string json) {
+	const std::string filenamePrefix = "\"filename_prefix\"";
+	size_t fieldPosition = 0;
+	while ((fieldPosition = json.find(filenamePrefix, fieldPosition)) != std::string::npos) {
+		auto valuePosition = json.find(':', fieldPosition + filenamePrefix.length());
+		if (valuePosition == std::string::npos) break;
+		valuePosition = json.find_first_not_of(" \t\r\n", valuePosition + 1);
+		if (valuePosition == std::string::npos || json[valuePosition] != '"') {
+			fieldPosition += filenamePrefix.length();
+			continue;
+		}
+
+		++valuePosition;
+		while (valuePosition < json.size() && json[valuePosition] != '"') {
+			if (json[valuePosition] != '\\') {
+				++valuePosition;
+				continue;
+			}
+			if (valuePosition + 1 < json.size() && json[valuePosition + 1] == '\\') {
+				json.replace(valuePosition, 2, "/");
+				++valuePosition;
+			} else {
+				valuePosition += 2;
+			}
+		}
+		fieldPosition = valuePosition;
+	}
+	return json;
+}
+#endif
 
 /**
  * ワークフローをComfyUIサーバーのキューに送信する
@@ -703,40 +752,45 @@ std::string queue_prompt(const std::string prompt_json) {
 
 }
 
-/// @brief ベースパス取得
-/// @param hModule モジュールハンドル
-/// @return このモジュールのベースパス
-/// @note ロングパス対策なしの簡易版だけど用途的には大丈夫な筈
-std::string GetBasePath(HMODULE hModule) {
-	std::vector<char> buf(MAX_PATH);
-	GetModuleFileNameA(hModule, &buf[0], MAX_PATH);
-	std::filesystem::path path(&buf[0]);
-	return path.parent_path().string() + "\\";
+/// @brief 実行中プラグインの配置フォルダーを返す。
+#if defined(_WIN32)
+static std::string GetBasePath(HMODULE module) {
+	std::vector<char> buffer(MAX_PATH); GetModuleFileNameA(module, buffer.data(), static_cast<DWORD>(buffer.size()));
+	return std::filesystem::path(buffer.data()).parent_path().string() + "\\";
+}
+#else
+static std::string GetBasePath() {
+	Dl_info info{}; if (dladdr(reinterpret_cast<const void*>(&GetBasePath), &info) == 0 || !info.dli_fname) return "./";
+	const auto path = std::filesystem::weakly_canonical(info.dli_fname);
+	return path.parent_path().parent_path().parent_path().parent_path().string() + "/";
+}
+#endif
+
+static void InitializeRuntimePaths() {
+	if (!g_BasePath.empty()) return;
+#if defined(__APPLE__)
+	g_BasePath = GetBasePath();
+#else
+	return;
+#endif
+	InitDebugOutput(g_BasePath);
+	g_TempPostJsonPath = g_BasePath + "temp_post.json";
+	g_TempPromptResultJsonPath = g_BasePath + "temp_prompt_res.json";
+	g_TempHistoryResultJsonPath = g_BasePath + "temp_history_res.json";
 }
 
-/// @brief DLLのエントリーポイント
-/// @param hModule DLL（自分）のモジュールハンドル
-/// @param fdwReason 呼ばれた理由（プロセスorスレッドのアタッチorデタッチ）
-/// @param lpReserved 予約済み
-/// @return 基本的にTRUE（ロード相手にNULL返すならFALSE）
-BOOL APIENTRY DllMain(HMODULE hModule, DWORD  fdwReason, LPVOID lpReserved) {
-	switch (fdwReason) {
-	case DLL_PROCESS_ATTACH:
-		// ベースパスの取得＆デバッグ出力の開始
+#if defined(_WIN32)
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID) {
+	if (fdwReason == DLL_PROCESS_ATTACH) {
 		g_BasePath = GetBasePath(hModule);
 		InitDebugOutput(g_BasePath);
-		g_TempPostJsonPath = g_BasePath + "temp_post.json"; 
-		g_TempPromptResultJsonPath = g_BasePath + "temp_prompt_res.json"; 
-		g_TempHistoryResultJsonPath = g_BasePath + "temp_history_res.json"; 
-		break;
-	case DLL_THREAD_ATTACH:
-	case DLL_THREAD_DETACH:
-	case DLL_PROCESS_DETACH:
-		break;
+		g_TempPostJsonPath = g_BasePath + "temp_post.json";
+		g_TempPromptResultJsonPath = g_BasePath + "temp_prompt_res.json";
+		g_TempHistoryResultJsonPath = g_BasePath + "temp_history_res.json";
 	}
 	return TRUE;
 }
-
+#endif
 /// プロパティキー
 enum PropertyKey {
 	ITEM_SETTING = 1,
@@ -752,8 +806,9 @@ enum PropertyKey {
 	ITEM_NUM1,
 	ITEM_NUM2,
 	ITEM_NUM3,
+	ITEM_USE_SELECTION_AS_MASK,
+	ITEM_OUTPAINT_TRANSPARENT_AREA,
 };
-
 constexpr std::array<PropertyKey, kNumberParameterCount> kNumberPropertyKeys = {
 	ITEM_NUM1,
 	ITEM_NUM2,
@@ -769,6 +824,7 @@ const std::array<std::string, kNumberParameterCount> kNumberPropertyNames = {
 /// @return 正常終了ならtrue
 /// @note ここでfalse返すとクリスタのバージョン上げろって言われる
 bool InitializeModule(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data, std::string id) {
+	InitializeRuntimePaths();
 	// 初期化
 	FilterPlugIn::ModuleInitialize initialize(server);
     if (!initialize.Initialize(id)) return false;
@@ -814,27 +870,45 @@ static std::string GetUserIniPath()
 /// @return COMMON以外のセクションを返す
 static std::vector<std::string> GetIniSectionsFromFile(const std::string& iniPath, std::string mode)
 {
-		if (iniPath.empty()) {
-			return {};
-		}
+	if (iniPath.empty()) {
+		return {};
+	}
+	std::vector<std::string> sectionNames;
+#if defined(_WIN32)
 		char sections[4096];
 		GetPrivateProfileSectionNamesA(sections, sizeof(sections), iniPath.c_str());
 		char *section = sections;
-		std::vector<std::string> result;
 		while (*section != NULL)
 		{
-			std::string name = section;
-			if (name != "COMMON") {
-				if (mode != "") {
-					print(("mode :" + mode + ", " + name).c_str());
-					if (name.find(mode) != std::string::npos) result.push_back(name);
-				} else {
-					result.push_back(name);
-				}
-			}
+			sectionNames.emplace_back(section);
 			section += strlen(section) + 1;
 		}
-		return result;
+#else
+	std::ifstream file(iniPath);
+	std::string line;
+	while (std::getline(file, line)) {
+		const auto first = line.find_first_not_of(" \t\r");
+		if (first == std::string::npos || line[first] == ';' || line[first] == '#') continue;
+		if (line[first] != '[') continue;
+		const auto end = line.find(']', first + 1);
+		if (end == std::string::npos) continue;
+		const auto nameEnd = line.find_last_not_of(" \t\r", end - 1);
+		if (nameEnd != std::string::npos && nameEnd >= first + 1) {
+			sectionNames.push_back(line.substr(first + 1, nameEnd - first));
+		}
+	}
+#endif
+	std::vector<std::string> result;
+	for (const auto& name : sectionNames) {
+		if (name == "COMMON") continue;
+		if (!mode.empty()) {
+			print(("mode :" + mode + ", " + name).c_str());
+			if (name.find(mode) != std::string::npos) result.push_back(name);
+		} else {
+			result.push_back(name);
+		}
+	}
+	return result;
 }
 
 /// @brief 複数iniファイルのセクションを結合（ユーザー設定を優先）
@@ -910,13 +984,19 @@ static void InitProperty(FilterPlugIn::Property& p, std::string mode) {
 	}
 
 	p.addStringItem(ITEM_PROMPT, "Prompt", 800);
+	p.setItemStoreValue(ITEM_PROMPT);
 	if (mode != "Banana") {
 		p.addStringItem(ITEM_NPROMPT, "Negative Prompt", 800);
+		p.setItemStoreValue(ITEM_NPROMPT);
 }
 	for (size_t i = 0; i < kNumberParameterCount; ++i) {
 		p.addDecimalItem(kNumberPropertyKeys[i], kNumberPropertyNames[i],
 			kDefaultNumberValues[i], kDefaultNumberMinimums[i], kDefaultNumberMaximums[i]);
 	}
+	p.addBooleanItem(ITEM_USE_SELECTION_AS_MASK, L"選択範囲をマスクとし、対象レイヤーのキャンバス全体を渡す", false);
+	p.setItemStoreValue(ITEM_USE_SELECTION_AS_MASK);
+	// p.addBooleanItem(ITEM_OUTPAINT_TRANSPARENT_AREA, L"外側の透明部分をアウトペイントする", false); // Temporarily disabled.
+// p.setItemStoreValue(ITEM_OUTPAINT_TRANSPARENT_AREA); // Temporarily disabled.
 	const int noImageIndex = static_cast<int>(g_SubImages.size());
 	auto addSubImageValues = [&](const FilterPlugIn::Property::EnumerationItem& enumeration) {
 		for(int i = 0; i < g_SubImages.size(); ++i) {
@@ -956,15 +1036,53 @@ std::string iniGetString(const std::string& filePath, const std::string& section
 	if (filePath.empty()) {
 		return "";
 	}
+#if defined(_WIN32)
 	char buf[MAX_PATH] = {};
 	GetPrivateProfileStringA(section.c_str(), key.c_str(), "", buf, MAX_PATH, filePath.c_str());
 	auto text = std::string(buf);
+#else
+	auto trim = [](const std::string& value) {
+		const auto first = value.find_first_not_of(" \t\r");
+		if (first == std::string::npos) return std::string{};
+		return value.substr(first, value.find_last_not_of(" \t\r") - first + 1);
+	};
+	auto equalsIgnoreCase = [](const std::string& left, const std::string& right) {
+		if (left.size() != right.size()) return false;
+		for (size_t i = 0; i < left.size(); ++i) {
+			if (std::tolower(static_cast<unsigned char>(left[i])) != std::tolower(static_cast<unsigned char>(right[i]))) return false;
+		}
+		return true;
+	};
+
+	std::ifstream file(filePath);
+	std::string text;
+	std::string currentSection;
+	std::string line;
+	while (std::getline(file, line)) {
+		const auto content = trim(line);
+		if (content.empty() || content[0] == ';' || content[0] == '#') continue;
+		if (content[0] == '[') {
+			const auto end = content.find(']');
+			currentSection = end == std::string::npos ? "" : trim(content.substr(1, end - 1));
+			continue;
+		}
+		if (!equalsIgnoreCase(currentSection, section)) continue;
+		const auto separator = content.find('=');
+		if (separator == std::string::npos) continue;
+		if (equalsIgnoreCase(trim(content.substr(0, separator)), key)) {
+			text = trim(content.substr(separator + 1));
+			break;
+		}
+	}
+#endif
 
 	// コメント削除
 	auto commentPos = text.find_first_of("#;");
 	if (commentPos != std::string::npos) {
 		text.erase(commentPos);
 	}
+	while (!text.empty() && std::isspace(static_cast<unsigned char>(text.back()))) text.pop_back();
+	if (text.size() >= 2 && text.front() == '"' && text.back() == '"') text = text.substr(1, text.size() - 2);
 
 	return text;
 }
@@ -989,6 +1107,16 @@ static void iniWithOverride(const std::string& defaultPath, const std::string& u
 	}
 }
 
+static bool iniBoolean(const std::string& value) {
+	std::string normalized = value;
+	std::transform(normalized.begin(), normalized.end(), normalized.begin(), [](unsigned char c) {
+		return static_cast<char>(std::tolower(c));
+	});
+	normalized.erase(std::remove_if(normalized.begin(), normalized.end(), [](unsigned char c) {
+		return std::isspace(c) || c == '"';
+	}), normalized.end());
+	return normalized == "true" || normalized == "1" || normalized == "yes" || normalized == "on";
+}
 // iniファイル読み込み：ユーザー→デフォルトの順で取得
 static void iniUserPreferred(const std::string& defaultPath, const std::string& userPath, const std::string& section, const std::string& key, std::string& val) {
 	if (!userPath.empty()) {
@@ -1036,12 +1164,13 @@ static void SwitchToSetting(int index, FilterPlugIn::Property& property, bool re
 	const auto userIniPath = g_HasUserSettingIni ? GetUserIniPath() : "";
 
 	g_params.template_workflow_filename.clear();
-	g_params.prompt.clear();
-	g_params.negative_prompt.clear();
-	
     iniUserPreferred(iniPath, userIniPath, setting, "template_workflow_filename", g_params.template_workflow_filename);
-    iniUserPreferred(iniPath, userIniPath, setting, "prompt", g_params.prompt);
-    iniUserPreferred(iniPath, userIniPath, setting, "negative_prompt", g_params.negative_prompt);
+	if (resetNumberValues) {
+		g_params.prompt.clear();
+		g_params.negative_prompt.clear();
+        iniUserPreferred(iniPath, userIniPath, setting, "prompt", g_params.prompt);
+        iniUserPreferred(iniPath, userIniPath, setting, "negative_prompt", g_params.negative_prompt);
+	}
 
 	for (size_t i = 0; i < kNumberParameterCount; ++i) {
 		const std::string numberName = "num" + std::to_string(i + 1);
@@ -1072,10 +1201,12 @@ static void SwitchToSetting(int index, FilterPlugIn::Property& property, bool re
 
 	// プロパティへの反映
 	property.setEnumeration(ITEM_SETTING, index);
-	property.setStringDefault(ITEM_PROMPT, ShiftJIS_to_UTF16(g_params.prompt));
-	property.setStringDefault(ITEM_NPROMPT, ShiftJIS_to_UTF16(g_params.negative_prompt));
-    property.setString(ITEM_PROMPT, ShiftJIS_to_UTF16(g_params.prompt));
-	property.setString(ITEM_NPROMPT, ShiftJIS_to_UTF16(g_params.negative_prompt));
+	if (resetNumberValues) {
+		property.setStringDefault(ITEM_PROMPT, ShiftJIS_to_UTF16(g_params.prompt));
+		property.setStringDefault(ITEM_NPROMPT, ShiftJIS_to_UTF16(g_params.negative_prompt));
+        property.setString(ITEM_PROMPT, ShiftJIS_to_UTF16(g_params.prompt));
+		property.setString(ITEM_NPROMPT, ShiftJIS_to_UTF16(g_params.negative_prompt));
+	}
 }
 
 /// プロパティ同期
@@ -1174,6 +1305,10 @@ static bool SyncProperty(FilterPlugIn::Int itemKey, FilterPlugIn::PropertyObject
 		return property.sync(ITEM_NUM2, g_params.numbers[1]);
 	case ITEM_NUM3:
 		return property.sync(ITEM_NUM3, g_params.numbers[2]);
+	case ITEM_USE_SELECTION_AS_MASK:
+		return property.sync(ITEM_USE_SELECTION_AS_MASK, info.use_selection_as_mask);
+	// 	case ITEM_OUTPAINT_TRANSPARENT_AREA:
+		// 		return property.sync(ITEM_OUTPAINT_TRANSPARENT_AREA, info.outpaint_transparent_area);
 	}
 	return false;
 }
@@ -1210,9 +1345,15 @@ bool InitializeFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data, std
 	iniWithOverride(iniPath, userIniOptionalPath, "COMMON", "getimage_retry_max_count", retryMaxCount);
 	std::string retryWaitSeconds;
 	iniWithOverride(iniPath, userIniOptionalPath, "COMMON", "getimage_retry_wait_seconds", retryWaitSeconds);
+	std::string usePythonImageConversion = "false";
+	iniWithOverride(iniPath, userIniOptionalPath, "COMMON", "use_python_image_conversion", usePythonImageConversion);
 
 	g_RetryMaxCount = std::stoi(retryMaxCount);
 	g_RetryWaitSeconds = std::stoi(retryWaitSeconds);
+	g_UsePythonImageConversion = iniBoolean(usePythonImageConversion);
+	print(g_UsePythonImageConversion
+		? "Image conversion: Python fallback"
+		: "Image conversion: C++ / Windows WIC");
 
 	// 設定リストの初期化
 	g_Settings = GetCombinedIniSections(iniPath, userIniOptionalPath, mode);
@@ -1253,6 +1394,8 @@ bool InitializeFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data, std
 	property.setEnumeration(ITEM_SUBIMAGE_PICTURE6, info->subimage_indices[4]);
 	property.setEnumeration(ITEM_SUBIMAGE_PICTURE7, info->subimage_indices[5]);
 	property.setEnumeration(ITEM_SUBIMAGE_PICTURE8, info->subimage_indices[6]);
+	property.setBoolean(ITEM_USE_SELECTION_AS_MASK, info->use_selection_as_mask);
+	// property.setBoolean(ITEM_OUTPAINT_TRANSPARENT_AREA, info->outpaint_transparent_area); // Temporarily disabled.
 	initialize.SetProperty(property);
 
 	// 初回は0番設定に
@@ -1590,6 +1733,10 @@ bool RunFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data, std::strin
 
 	// 前回の設定で開く
 	FilterPlugIn::Property property(server, run.GetProperty());
+	property.sync(ITEM_PROMPT, g_params.prompt);
+	property.sync(ITEM_NPROMPT, g_params.negative_prompt);
+	property.sync(ITEM_USE_SELECTION_AS_MASK, info->use_selection_as_mask);
+	// property.sync(ITEM_OUTPAINT_TRANSPARENT_AREA, info->outpaint_transparent_area); // Temporarily disabled.
 	// API 実行後に変更された数値を保持したままフィルターを開く。
 	SwitchToSetting(info->setting, property, false);
 	auto refreshSelectedSubImages = [&]() {
@@ -1615,28 +1762,29 @@ bool RunFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data, std::strin
 			property.setEnumeration(ITEM_SUBIMAGE_PICTURE6, info->subimage_indices[4]);
 			property.setEnumeration(ITEM_SUBIMAGE_PICTURE7, info->subimage_indices[5]);
 			property.setEnumeration(ITEM_SUBIMAGE_PICTURE8, info->subimage_indices[6]);
+	property.setBoolean(ITEM_USE_SELECTION_AS_MASK, info->use_selection_as_mask);
+	// property.setBoolean(ITEM_OUTPAINT_TRANSPARENT_AREA, info->outpaint_transparent_area); // Temporarily disabled.
 		}		
 	};
 	refreshSelectedSubImages();
 
-	// 選択範囲の取得
-	const auto selectAreaRect = run.GetSelectArea();
-	const auto width = selectAreaRect.right - selectAreaRect.left;
-	const auto height = selectAreaRect.bottom - selectAreaRect.top;
-	const auto offsetX = selectAreaRect.left;
-	const auto offsetY = selectAreaRect.top;
-
-	print("selectArea:");
-	print(std::to_string(width).c_str());
-	print(std::to_string(height).c_str());
-	print(std::to_string(offsetX).c_str());
-	print(std::to_string(offsetY).c_str());
-
-	// オフスクリーンの取得
-	FilterPlugIn::Offscreen offscreenSource(server), offscreenDestination(server), offscreenSelectArea(server);
-	offscreenSource.GetSource();
-	offscreenDestination.GetDestination();
-	offscreenSelectArea.GetSelectArea();
+	// 選択範囲は外接矩形だけを利用する。選択範囲オフスクリーン API は非矩形選択時に不安定なため呼び出さない。
+	FilterPlugIn::Rect selectAreaRect = run.GetSelectArea();
+	FilterPlugIn::Offscreen offscreenSource(server), offscreenDestination(server);
+	offscreenSource.GetSource(); offscreenDestination.GetDestination();
+	FilterPlugIn::Rect fullLayerRect{}; const bool hasFullLayerRect = GetFullLayerRect(offscreenSource, fullLayerRect);
+	print("Selection rect: [%d, %d, %d, %d], full layer rect: [%d, %d, %d, %d]", selectAreaRect.left, selectAreaRect.top, selectAreaRect.right, selectAreaRect.bottom, fullLayerRect.left, fullLayerRect.top, fullLayerRect.right, fullLayerRect.bottom);
+	if (FilterPlugIn::isRectEmpty(selectAreaRect) && hasFullLayerRect) { selectAreaRect = fullLayerRect; print("Selection rectangle is empty; using the full layer rectangle."); }
+	const bool useFullLayerInput = info->use_selection_as_mask;
+	FilterPlugIn::Rect inputAreaRect = selectAreaRect;
+	if (useFullLayerInput && hasFullLayerRect) inputAreaRect = fullLayerRect;
+	else if (useFullLayerInput) print("Mask mode: failed to get full layer rect; using selection rectangle.");
+	if (FilterPlugIn::isRectEmpty(inputAreaRect)) { print("Aborting process because the input rectangle is empty."); return false; }
+	const FilterPlugIn::Rect outputAreaRect = selectAreaRect;
+	const auto width = inputAreaRect.right - inputAreaRect.left; const auto height = inputAreaRect.bottom - inputAreaRect.top;
+	const auto offsetX = inputAreaRect.left; const auto offsetY = inputAreaRect.top;
+	if (info->use_selection_as_mask) print("Input mode: full layer with rectangular selection mask");
+	else print("Input mode: selection bounding rectangle");
 
 	// メイン処理
 	while (true) {
@@ -1651,7 +1799,8 @@ bool RunFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data, std::strin
 		inputImageBuffer.rect.left = offsetX;
 		inputImageBuffer.rect.bottom = offsetY + inputImageBuffer.get_height();
 		inputImageBuffer.rect.right = offsetX + inputImageBuffer.get_width();
-		auto sourceRects = offscreenSource.GetBlockRects(selectAreaRect);
+		auto sourceRects = offscreenSource.GetBlockRects(inputAreaRect);
+		print("Source block count: %d for input rect [%d, %d, %d, %d]", static_cast<int>(sourceRects.size()), inputAreaRect.left, inputAreaRect.top, inputAreaRect.right, inputAreaRect.bottom);
 		for (const auto& rect : sourceRects) {
 			if (run.Process(FilterPlugIn::Run::States::Continue) != FilterPlugIn::Run::Results::Continue) break;
 			FilterPlugIn::Block srcBlock = offscreenSource.GetBlockImage(rect);
@@ -1666,11 +1815,13 @@ bool RunFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data, std::strin
 		std::string inputImageFileName = "temp_img_req_" + datetimenow;
 		std::array<std::string, kSubImageDropdownCount> subImageUploadFileNames{};
 		std::string tempImageFileName = "temp_img_req";
-		write_bmp_file(inputImageBuffer, g_BasePath + tempImageFileName +".bmp");
-
-		// 入力画像をPNGに変換
-		call_bmp_to_png(tempImageFileName + ".bmp");
-
+		if (info->use_selection_as_mask) {
+			std::vector<unsigned char> rgba; CopyImageToRgba(inputImageBuffer, rgba);
+			// 			if (info->outpaint_transparent_area && !CopyLayerAlphaToRgba(offscreenSource, inputAreaRect, rgba)) { print("Aborting process because the layer alpha channel could not be read for outpaint mask."); return false; } // Temporarily disabled.
+			if (info->use_selection_as_mask) ApplyRectangleSelectionMask(selectAreaRect, inputAreaRect, rgba);
+			std::string errorMessage;
+			if (!ComvertImage::WriteRgbaPng(g_BasePath + tempImageFileName + ".png", rgba.data(), width, height, &errorMessage)) { LogImageConversionFailure("RGBA PNG creation for ComfyUI mask", errorMessage); return false; }
+		} else { write_bmp_file(inputImageBuffer, g_BasePath + tempImageFileName +".bmp"); if (!call_bmp_to_png(tempImageFileName + ".bmp")) { print("Aborting process because BMP to PNG conversion failed."); return false; } }
 		// 入力画像を事前にPOST
         std::string url = g_ServerAddress + "/upload/image";
 		http_post_image_to_file(url, g_BasePath + tempImageFileName + ".png", inputImageFileName + ".png", "temp_json_preimage_res.json");
@@ -1713,6 +1864,9 @@ bool RunFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data, std::strin
 		for (size_t i = 0; i < kSubImageDropdownCount; ++i) {
 			prompt_modified = replace_all(prompt_modified, kSubImageMarkers[i], subImageUploadFileNames[i]);
 		}
+		#if defined(__APPLE__)
+		prompt_modified = NormalizeFilenamePrefixSeparatorsForMac(prompt_modified);
+		#endif
 		
 		print("Replace finished.");
 
@@ -1724,7 +1878,10 @@ bool RunFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data, std::strin
 			return false;
 		} 
 
-		call_png_to_bmp();
+		if (!call_png_to_bmp()) {
+			print("Aborting process because PNG to BMP conversion failed.");
+			return false;
+		}
 
 		print("Output to layer.");
 
@@ -1740,34 +1897,17 @@ bool RunFilter(FilterPlugIn::Server* server, FilterPlugIn::Ptr* data, std::strin
 
 		print("start transfer");
 
-		// ブロック転送
-		auto destRects = offscreenDestination.GetBlockRects(selectAreaRect);
+		// ブロック転送は常に選択範囲の外接矩形へ反映する。アウトペイント時も入力だけはレイヤー全体である。
+		auto destRects = offscreenDestination.GetBlockRects(outputAreaRect);
 		for (const auto& rect : destRects) {
 			if (run.Process(FilterPlugIn::Run::States::Continue) != FilterPlugIn::Run::Results::Continue) break;
-
-    		// print("transfer1");
-			// 転送先ブロック
 			FilterPlugIn::Block imageBlock = offscreenDestination.GetBlockImage(rect);
 			FilterPlugIn::Block alphaBlock = offscreenDestination.GetBlockAlpha(rect);
-
-			if (offscreenSelectArea) {
-				// 選択範囲ブロック
-				FilterPlugIn::Block selectBlock = offscreenSelectArea.GetBlockSelectArea(rect);
-
-        		// print("transfer2");
-				// 選択範囲（マスク）付きで描画
-				Transfer(imageBlock, outputImageBuffer, alphaBlock, selectBlock);
-			} else {
-        		// print("transfer2-2");
-				// 選択範囲なしで描画（透明ピクセルは埋めない）
-				// Transfer(imageBlock, outputBlock, alphaBlock);
-				Transfer(imageBlock, outputImageBuffer, alphaBlock);
-			}
-
-    		// print("transfer3");
+			// 			if (info->outpaint_transparent_area) TransferForOutpaint(imageBlock, outputImageBuffer, alphaBlock); // Temporarily disabled.
+			Transfer(imageBlock, outputImageBuffer, alphaBlock);
 			run.UpdateRect(rect);
 		}
-  		print("end transfer");
+		print("end transfer");
 		if (run.Result() == FilterPlugIn::Run::Results::Restart) continue;
 		if (run.Result() == FilterPlugIn::Run::Results::Exit) break;
 
@@ -1810,9 +1950,13 @@ void Transfer(const ImageBuffer& dst, const FilterPlugIn::Block& src, int offset
 			// pDst[dstR] = pSrc[srcR];
 			// pDst[dstG] = pSrc[srcG];
 			// pDst[dstB] = pSrc[srcB];
-			dst.set_pixel_value(x + src.rect.left - offsetX, y + src.rect.top - offsetY, 0, pSrc[srcR]);
-			dst.set_pixel_value(x + src.rect.left - offsetX, y + src.rect.top - offsetY, 1, pSrc[srcG]);
-			dst.set_pixel_value(x + src.rect.left - offsetX, y + src.rect.top - offsetY, 2, pSrc[srcB]);
+			// pSrc points at rect.left/top, which may differ from the source block's
+			// origin when the requested layer extent intersects a block.
+			const int destinationX = x + rect.left - offsetX;
+			const int destinationY = y + rect.top - offsetY;
+			dst.set_pixel_value(destinationX, destinationY, 0, pSrc[srcR]);
+			dst.set_pixel_value(destinationX, destinationY, 1, pSrc[srcG]);
+			dst.set_pixel_value(destinationX, destinationY, 2, pSrc[srcB]);
 			pSrc += srcPixelBytes;
 			// pDst += dstPixelBytes;
 		}
@@ -1860,9 +2004,11 @@ void Transfer(const FilterPlugIn::Block& dst, const ImageBuffer& src, const Filt
 				// print((const char*)src.get_pixel_value(x, y, 2));
 				// print((const char*)src.get_pixel_value(x, y, 1));
 				// print((const char*)src.get_pixel_value(x, y, 0));
-				pDst[dstR] = src.get_pixel_value(x + rect.left, y + rect.top, 0);
-				pDst[dstG] = src.get_pixel_value(x + rect.left, y + rect.top, 1);
-				pDst[dstB] = src.get_pixel_value(x + rect.left, y + rect.top, 2);
+				const int sourceX = x + rect.left - src.rect.left;
+				const int sourceY = y + rect.top - src.rect.top;
+				pDst[dstR] = src.get_pixel_value(sourceX, sourceY, 0);
+				pDst[dstG] = src.get_pixel_value(sourceX, sourceY, 1);
+				pDst[dstB] = src.get_pixel_value(sourceX, sourceY, 2);
 			}
 			//pSrc += srcPixelBytes;
 			pDst += dstPixelBytes;
@@ -1875,6 +2021,15 @@ void Transfer(const FilterPlugIn::Block& dst, const ImageBuffer& src, const Filt
 }
 
 
+#if 0 // Temporarily disabled outpaint write-back implementation.
+// アウトペイント結果は、元レイヤーで透明だったピクセルにも書き込み、アルファを不透明にする。
+void TransferForOutpaint(const FilterPlugIn::Block& dst, const ImageBuffer& src, const FilterPlugIn::Block& alpha) {
+	const auto rect = FilterPlugIn::intersectRects(dst.rect, src.rect); if (FilterPlugIn::isRectEmpty(rect)) return;
+	pbyte_t pDstRow = static_cast<pbyte_t>(dst.address) + FilterPlugIn::addressOffset(dst, rect);
+	pbyte_t pAlpRow = static_cast<pbyte_t>(alpha.address) + FilterPlugIn::addressOffset(alpha, rect);
+	for (int y = 0; y < rect.bottom - rect.top; ++y) { pbyte_t pDst = pDstRow; pbyte_t pAlp = pAlpRow; for (int x = 0; x < rect.right - rect.left; ++x) { const int sourceX = x + rect.left - src.rect.left; const int sourceY = y + rect.top - src.rect.top; pDst[dst.r] = src.get_pixel_value(sourceX, sourceY, 0); pDst[dst.g] = src.get_pixel_value(sourceX, sourceY, 1); pDst[dst.b] = src.get_pixel_value(sourceX, sourceY, 2); *pAlp = 255; pDst += dst.pixelBytes; pAlp += alpha.pixelBytes; } pDstRow += dst.rowBytes; pAlpRow += alpha.rowBytes; }
+}
+#endif
 /// @brief ブロック転送（アルファ＆選択マスク付き）
 /// @param dst 転送先のブロック
 /// @param src 転送元のブロック
@@ -1940,7 +2095,7 @@ void Transfer(const FilterPlugIn::Block& dst, const ImageBuffer& src, const Filt
 /// @param server 処理サーバー（ホスト側アクセスが全部入ってる）
 /// @param reserved 予約済みかな？
 /// @return 無し
-extern "C" __declspec(dllexport) void TriglavPluginCall(FilterPlugIn::CallResult* result, FilterPlugIn::Ptr* data, FilterPlugIn::Selector selector, FilterPlugIn::Server* server, void* reserved) {
+COMFYUI_EXPORT void TriglavPluginCall(FilterPlugIn::CallResult* result, FilterPlugIn::Ptr* data, FilterPlugIn::Selector selector, FilterPlugIn::Server* server, void* reserved) {
 	*result = FilterPlugIn::CallResult::Failed;
 
 	// 生きてないと困るものをチェック

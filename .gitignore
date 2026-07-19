@@ -7,6 +7,14 @@
 .vscode/
 stable-diffusion.dll
 
+# Local release notes, design documents, and archived reference builds.
+docs/
+note/
+参考/
+memo.txt
+README.md.bak
+Release.md
+
 # User-specific files
 *.rsuser
 *.suo

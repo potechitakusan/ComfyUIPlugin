@@ -122,7 +122,7 @@ namespace FilterPlugIn {
 	}
 
 	// アルファブレンド
-	inline int BlendFunction(const int dst, const int src, const int alpha) {
+	int BlendFunction(const int dst, const int src, const int alpha) {
 		return (((src - dst) * alpha) / 255) + dst;
 	}
 

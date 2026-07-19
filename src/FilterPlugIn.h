@@ -11,6 +11,7 @@
 
 #pragma once
 #include <functional>
+#include <string>
 
 namespace FilterPlugIn {
 
@@ -286,7 +287,7 @@ namespace FilterPlugIn {
     extern bool isRectEmpty(const Rect& rect);
 	extern Rect intersectRects(const Rect& a, const Rect& b);
 	extern Int addressOffset(const Block& block, const Rect& target);
-	extern inline int BlendFunction(const int dst, const int src, const int alpha);
+	int BlendFunction(const int dst, const int src, const int alpha);
 
 	/// オブジェクトベース（releaseProcで解放するタイプのやつ用）
 	template < class OBJECT, class SERVICE >
@@ -330,6 +331,12 @@ namespace FilterPlugIn {
 			return object;
 		} } {}
 		String(const wchar_t* str) : String(std::wstring(str)) {}
+		String(std::u16string const& str) : ObjectBase{ nullptr }, make_{ [str](Service const* service) {
+			Object object{};
+			service->createWithUnicodeStringProc(&object, reinterpret_cast<const UniChar*>(str.c_str()), str.length());
+			return object;
+		} } {}
+		String(const char16_t* str) : String(std::u16string(str)) {}
 
 		// ここで実体化する
 		Object operator()(Server const* server) {
@@ -443,6 +450,7 @@ namespace FilterPlugIn {
 		auto setEnumeration(int key, int val) const { service2()->setEnumerationValueProc(*this, key, val); }
 		auto setString(int key, String val) const { service2()->setStringValueProc(*this, key, val(server())); }
 		auto setStringDefault(int key, String val) const { service2()->setStringDefaultValueProc(*this, key, val(server())); }
+		auto setItemStoreValue(int key, bool store = true) const { service2()->setItemStoreValueProc(*this, key, store); }
 
 		int getEnumeration(int key) const { Int val; service2()->getEnumerationValueProc(&val, *this, key); return val; }
 
@@ -484,6 +492,16 @@ namespace FilterPlugIn {
 			Object object;
 			record_->filterRunRecord->getSelectAreaOffscreenProc(&object, server()->hostObject);
 			if (object) reset(*service_, object, false);
+		}
+		Rect GetRect() {
+			Rect rect{};
+			service_->getRectProc(&rect, *this);
+			return rect;
+		}
+		Rect GetExtentRect() {
+			Rect rect{};
+			service_->getExtentRectProc(&rect, *this);
+			return rect;
 		}
 		std::vector<Rect> GetBlockRects(const Rect& rect) {
 			Int count = 0;
