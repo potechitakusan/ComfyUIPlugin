@@ -7,13 +7,13 @@ set "EXPORTER_REPOSITORY=https://github.com/potechitakusan/ComfyUI_CCP_API_Expor
 
 echo.
 echo ============================================================
-echo ComfyUIPlugin インストーラー
+echo ComfyUIPlugin installer
 echo ============================================================
 echo.
-echo ComfyUI の準備方法を選択してください:
-echo   1. ComfyUI-Easy-Install で ComfyUI をインストールする ^(未インストールの場合に推奨^)
-echo   2. 既存の ComfyUI フォルダーを指定する
-echo   3. ComfyUI のセットアップをスキップする
+echo Select how to prepare ComfyUI:
+echo   1. Install ComfyUI with ComfyUI-Easy-Install ^(recommended if not installed^)
+echo   2. Specify an existing ComfyUI folder
+echo   3. Skip ComfyUI setup
 
 echo.
 choice /c 123 /n /m "Select 1, 2, or 3"
@@ -27,22 +27,22 @@ if not exist "%EASY_INSTALL_PARENT%\" set "EASY_INSTALL_PARENT=%CD%"
 set "EASY_INSTALL_ZIP=%EASY_INSTALL_PARENT%\ComfyUI-Easy-Install.zip"
 
 echo.
-echo ComfyUI-Easy-Install をダウンロードしています...
+echo Downloading ComfyUI-Easy-Install...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '%EASY_INSTALL_URL%' -OutFile '%EASY_INSTALL_ZIP%'"
 if errorlevel 1 goto :POWERSHELL_ERROR
 
-echo ComfyUI-Easy-Install を展開しています...
+echo Extracting ComfyUI-Easy-Install...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -LiteralPath '%EASY_INSTALL_ZIP%' -DestinationPath '%EASY_INSTALL_PARENT%' -Force"
 if errorlevel 1 goto :POWERSHELL_ERROR
 
 set "EASY_INSTALLER="
 for /r "%EASY_INSTALL_PARENT%" %%F in (ComfyUI-Easy-Install.bat) do if not defined EASY_INSTALLER set "EASY_INSTALLER=%%~fF"
 if not defined EASY_INSTALLER (
-    echo エラー: 展開後に ComfyUI-Easy-Install.bat が見つかりませんでした
+    echo Error: ComfyUI-Easy-Install.bat was not found after extraction.
     goto :END
 )
 
-echo ComfyUI-Easy-Install を開始します 完了後、このウィンドウに戻ってください
+echo Starting ComfyUI-Easy-Install. Return to this window when it finishes.
 call "%EASY_INSTALLER%"
 goto :ASK_COMFYUI_PATH
 
@@ -51,11 +51,11 @@ set "COMFYUI_DIR="
 set /p "COMFYUI_DIR=ComfyUI folder path: "
 set "COMFYUI_DIR=%COMFYUI_DIR:"=%"
 if not defined COMFYUI_DIR (
-    echo フォルダーのパスを入力してください
+    echo Enter a folder path.
     goto :ASK_COMFYUI_PATH
 )
 if not exist "%COMFYUI_DIR%\" (
-    echo フォルダーが見つかりません: %COMFYUI_DIR%
+    echo Folder not found: %COMFYUI_DIR%
     goto :ASK_COMFYUI_PATH
 )
 goto :COPY_COMFYUI_FILES
@@ -68,15 +68,15 @@ if not exist "%COMFYUI_WORKFLOW_DIR%\" mkdir "%COMFYUI_WORKFLOW_DIR%"
 
 if exist "%SCRIPT_DIR%input\*.png" (
     copy /Y "%SCRIPT_DIR%input\*.png" "%COMFYUI_INPUT_DIR%\" >nul
-    echo 入力用 PNG ファイルをコピーしました
+    echo Copied input PNG files.
 ) else (
-    echo 入力用 PNG ファイルは見つかりませんでした
+    echo No input PNG files were found.
 )
 if exist "%SCRIPT_DIR%examples\*.json" (
     copy /Y "%SCRIPT_DIR%examples\*.json" "%COMFYUI_WORKFLOW_DIR%\" >nul
-    echo ワークフローの JSON サンプルファイルをコピーしました
+    echo Copied example workflow JSON files.
 ) else (
-    echo ワークフローの JSON サンプルファイルは見つかりませんでした
+    echo No example workflow JSON files were found.
 )
 
 set "INSTALL_EXPORTER=Y"
@@ -85,52 +85,52 @@ if /i "%INSTALL_EXPORTER%"=="N" goto :INSTALL_PLUGIN
 
 set "EXPORTER_DIR=%COMFYUI_DIR%\custom_nodes\ComfyUI_CCP_API_Exporter"
 if exist "%EXPORTER_DIR%\" (
-    echo CCP API Exporter は既に存在します: %EXPORTER_DIR%
+    echo CCP API Exporter already exists: %EXPORTER_DIR%
     git --version >nul 2>&1
     if errorlevel 1 (
-        echo 警告: Git が見つからなかったため、CCP API Exporter は更新されませんでした
+        echo Warning: Git was not found, so CCP API Exporter was not updated.
     ) else (
-        echo CCP API Exporter を更新しています...
+        echo Updating CCP API Exporter...
         git -C "%EXPORTER_DIR%" pull --ff-only
-        if errorlevel 1 echo 警告: CCP API Exporter の更新に失敗しました フォルダーが Git リポジトリか確認してください
+        if errorlevel 1 echo Warning: CCP API Exporter update failed. Check that the folder is a Git repository.
     )
     goto :INSTALL_PLUGIN
 )
 if not exist "%COMFYUI_DIR%\custom_nodes\" mkdir "%COMFYUI_DIR%\custom_nodes"
 git --version >nul 2>&1
 if errorlevel 1 (
-    echo Git が見つかりませんでした Git をインストールしてから、次を実行してください:
+    echo Git was not found. Install Git and then run:
     echo git clone %EXPORTER_REPOSITORY% "%EXPORTER_DIR%"
     goto :INSTALL_PLUGIN
 )
 
-echo CCP API Exporter を複製しています...
+echo Cloning CCP API Exporter...
 git clone "%EXPORTER_REPOSITORY%" "%EXPORTER_DIR%"
 if errorlevel 1 (
-    echo 警告: CCP API Exporter の複製に失敗しました
+    echo Warning: CCP API Exporter clone failed.
 ) else (
-    echo CCP API Exporter をインストールしました
+    echo CCP API Exporter installed.
 )
 goto :INSTALL_PLUGIN
 
 :POWERSHELL_ERROR
 echo.
-echo PowerShell によるダウンロードまたは展開に失敗しました
-echo 実行ポリシーが原因の場合は、PowerShell で次を実行してから再試行してください:
+echo PowerShell download or extraction failed.
+echo If execution policy is the cause, run this in PowerShell and retry:
 echo Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 goto :END
 
 :INSTALL_PLUGIN
 echo.
-echo CLIP STUDIO PAINT プラグインをインストールしています...
+echo Installing the CLIP STUDIO PAINT plugin...
 if not exist "%SCRIPT_DIR%ComfyUIPlugin_CopyCPM.bat" (
-    echo エラー: ComfyUIPlugin_CopyCPM.bat が見つかりませんでした
+    echo Error: ComfyUIPlugin_CopyCPM.bat was not found.
     goto :END
 )
 call "%SCRIPT_DIR%ComfyUIPlugin_CopyCPM.bat"
 
 :END
 echo.
-echo インストーラーが完了しました
+echo Installer finished.
 pause
 endlocal

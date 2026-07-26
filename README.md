@@ -31,7 +31,7 @@ ComfyUIでできない画像生成は、本プラグインを導入しても実�
 使用イメージは[Xのポスト](https://x.com/potechi_takusan/status/1976281630278029393)を参照してください。
 <br>
 [リリースページ](https://github.com/potechitakusan/ComfyUIPlugin/releases) から最新バージョンをダウンロードしてください。<br>
-解凍したフォルダの「ComfyUIPlugin_install.bat」を実行してください。ComfyUI のセットアップ方法を選択した後、プラグイン本体・サンプルワークフロー・input 用画像を必要な場所へコピーします。<br>
+展開したフォルダの「ComfyUIPlugin_install.bat」を実行してください。ComfyUI のセットアップ方法を選択した後、プラグイン本体・サンプルワークフロー・input 用画像を必要な場所へコピーします。<br>
 <br>
 初回は後述のComfyUI関連セットアップも実施してください。<br>
 <br>
@@ -326,8 +326,7 @@ ComfyUIPluginのフォルダの UserSetting.ini に以下のようにセクシ�
 
 ・inpaint的な使い方できる？
 
-生成AIには、画面全体、もしくは、選択した範囲のみ渡されます。
-マスクを渡す方法はありませんが、マスクしたい個所を赤く塗ってプロンプトで指示すればもしかしたら動くかもしれません。
+v0.5.0から可能です。
 
 ### 【上級編】
 ・実装が気に入りません。ビルドしなおすには？
@@ -341,7 +340,7 @@ ComfyUIPluginのフォルダの UserSetting.ini に以下のようにセクシ�
 
 ・macOS版を使うには？
 
-`forMac/README.md` の手順に従ってビルドしてください。macOS 版は試験的な対応であり、通常生成・選択範囲・アウトペイントを含む動作確認が必要です。
+ReleaseからMac版をダウンロードし、「install.sh」を実行してください。
 
 ## 補足情報
 
