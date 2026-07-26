@@ -31,11 +31,9 @@ ComfyUIでできない画像生成は、本プラグインを導入しても実�
 使用イメージは[Xのポスト](https://x.com/potechi_takusan/status/1976281630278029393)を参照してください。
 <br>
 [リリースページ](https://github.com/potechitakusan/ComfyUIPlugin/releases) から最新バージョンをダウンロードしてください。<br>
-解凍すると中に「ComfyUIPlugin_install.bat」というバッチファイルがあるのでそれを実行してください。<br>
-プラグイン用のフォルダにファイルがコピーされます。<br>
+展開したフォルダの「ComfyUIPlugin_install.bat」を実行してください。ComfyUI のセットアップ方法を選択した後、プラグイン本体・サンプルワークフロー・input 用画像を必要な場所へコピーします。<br>
 <br>
-また、ComfyUI自体のインストール、および、特定のフォルダにテンプレートのjsonファイルの格納が必要です。<br>
-後述のComfyUI関連セットアップも実施してください。<br>
+初回は後述のComfyUI関連セットアップも実施してください。<br>
 <br>
 フィルタ自体は、クリスタを起動するとメニューの「フィルター(I)」の所に「ComfyUI API(X)」という項目が増えてるので、そこからご使用ください。<br>
 v0.3.0 以降は、通常のワークフロー用の「Generate」と、Nano Banana 用の「Nano Banana Generate」が別フィルタとして表示されます。Nano Banana のワークフローを使用する場合は「Nano Banana Generate」を選択してください。<br>
@@ -68,10 +66,10 @@ empty.png  ※サブ画像を送信しないテンプレートのプレースホ
 examplesフォルダにある以下のファイルをComfyUIの画面にドラッグ＆ドロップして開き、動作することを確認してください。
 
 NanoBananaサンプル：ccp_api_google_gemini_image.json<br>
-NanoBanana 4inputsサンプル：ccp_api_google_gemini_image_4inputs.json<br>
-SeeDream4サンプル：ccp_api_bytedance_seedream4.json<br>
-QwenImageサンプル：ccp_qwen_image_edit_2509.json<br>
-FluxKontextDevサンプル：ccp_flux_kontext_dev.json<br>
+NanoBanana Proサンプル：ccp_api_google_gemini_image_pro.json、ccp_api_google_gemini_image_pro_8inputs.json<br>
+Seedreamサンプル：ccp_api_bytedance_seedream5.json<br>
+Qwen Image Edit サンプル：ccp_qwen_image_edit_2511.json、ccp_Masked_Qwen_Image_Edit_2511.json<br>
+Flux Kontext Devサンプル：ccp_flux_kontext_dev.json<br>
 
 NanoBananaは有料のAPIを呼び出すため、設定 >> ユーザー の画面にてユーザー登録してください。
 クレジットも登録しておきましょう。5$くらいあればしばらく遊べます。
@@ -91,37 +89,7 @@ FluxKontextDevのプロンプトの例は以下です。ワークフロー内の
 
     line art.
 
-それぞれ動作確認ができたら、画像のファイル名とプロンプトを元に戻してください。
-（後述の ComfyUI CCP API Exporter を利用する場合は戻さなくても良いです）
-
-ccp_api_google_gemini_image.json の戻し方
-* 左の入力画像は「temp_img_req_yyyyMMddhhmmss.png」を指定する。
-* 右の入力画像は「temp_subimg_req_yyyyMMddhhmmss.png」を指定する。
-* プロンプトは「###input1###」を指定する。
-
-ccp_api_google_gemini_image_4inputs.json の戻し方
-* Picture 1 の入力画像は「temp_img_req_yyyyMMddhhmmss.png」を指定する。
-* Picture 2 の入力画像は「temp_subimg_req_yyyyMMddhhmmss.png」を指定する。
-* Picture 3 の入力画像は「temp_subimg2_req_yyyyMMddhhmmss.png」を指定する。
-* Picture 4 の入力画像は「temp_subimg3_req_yyyyMMddhhmmss.png」を指定する。
-* プロンプトは「###input1###」を指定する。
-
-ccp_api_bytedance_seedream4.json の戻し方
-* Picture 1 の入力画像は「temp_img_req_yyyyMMddhhmmss.png」を指定する。
-* Picture 2 の入力画像は「temp_subimg_req_yyyyMMddhhmmss.png」を指定する。
-* Picture 3 の入力画像は「temp_subimg2_req_yyyyMMddhhmmss.png」を指定する。
-* Picture 4 の入力画像は「temp_subimg3_req_yyyyMMddhhmmss.png」を指定する。
-* プロンプトは「###input1###」を指定する。
-
-ccp_qwen_image_edit_2509.json の戻し方
-* 左の入力画像は「temp_img_req_yyyyMMddhhmmss.png」を指定する。
-* 右の入力画像は「temp_subimg_req_yyyyMMddhhmmss.png」を指定する。
-* プロンプトは「###input1###」を指定する。
-* ネガティブプロンプトは「###input2###」を指定する。
-
-ccp_flux_kontext_dev.json の戻し方
-* 左の入力画像は「temp_img_req_yyyyMMddhhmmss.png」を指定する。
-* プロンプトは「###input1###」を指定する。
+サンプルをプラグインから使うには、後述の ComfyUI CCP API Exporter で API JSON を出力します。Picture 1 は ``temp_img_req_yyyyMMddhhmmss.png``、Picture 2〜4 は順に ``temp_subimg_req_yyyyMMddhhmmss.png``、``temp_subimg2_req_yyyyMMddhhmmss.png``、``temp_subimg3_req_yyyyMMddhhmmss.png``、Prompt は ``###input1###``、Negative Prompt は ``###input2###`` を指定してください。
 
 ### ComfyUI CCP API Exporter（推奨）
 
@@ -206,9 +174,9 @@ CLIP STUDIO PAINT EX を開きます。
 フィルタ >> ComfyUI API >> Nano Banana Generate にてフィルタ画面を開き、Setting: が「Google Gemini Image(Nano-Banana)」であることを確認してOKを押下します。
 画像生成が成功した場合、レイヤーが生成後の画像に置き換わります。
 
-### Qwen Image Edit 2509呼び出し
+### Qwen Image Edit 呼び出し
 
-NanoBananaの場合と同じ操作で、Setting: にて「Qwen Image Edit 2509」を指定してOKを押下します。
+NanoBananaの場合と同じ操作で、Setting: にて「Qwen Image Edit 2511」または「Masked Qwen Image Edit 2511」を指定してOKを押下します。
 画像生成が成功した場合、レイヤーが生成後の画像に置き換わります。
 3D人形は、顔や体がのっぺりした人形だとポーズとして認識されない可能性があるため、他のキャラクターや実写画像でも試してください。
 ComfyUIのinputフォルダに真っ黒な画像が出力されている場合、ポーズ認識に失敗しています。成功の場合はカラフルな線の画像が出力されます。
@@ -230,7 +198,7 @@ NanoBananaの場合と同じ操作で、Setting: にて「FLUX Kontext Dev」を
 
 画像の２個目以降は、ComfyUIPluginフォルダの SubImage フォルダに格納したPNGファイルです。
 通常の「Generate」フィルタでは SubImage(Picture 2/3/4) を指定できます。`(no image)` を選ぶと該当のサブ画像を送信せずにワークフローを実行します（テンプレート内では `empty.png` を参照します）。
-`Google Gemini Image(Nano-Banana)` や `Qwen Image Edit 2509` では主に Picture 2 を使用します。`Google Gemini Image(Nano-Banana) 4inputs`・`SeeDream4 4inputs` では Picture 2～4 を活用してください。
+`Google Gemini Image(Nano-Banana)` や `Qwen Image Edit 2511` では主に Picture 2 を使用します。`ByteDance Seedream5 4inputs` では Picture 2～4 を活用してください。
 「Nano Banana Generate」フィルタでは Picture 2〜8 まで、最大 7 枚の SubImage を指定できます。`Google Gemini Image(Nano-Banana Pro) 8inputs` のように複数の参照画像を使うワークフローで利用してください。
 `FLUX Kontext Dev` のワークフローでは、画像の１個目のみ渡します。
 
@@ -266,9 +234,9 @@ NanoBananaなど有料のAPIを利用する場合のみ必須です。ローカ�
 
 生成AIは、なんだかんだお金がかるんですよね。
 
-・MacOSには対応していますか？
+・macOSには対応していますか？
 
-Windowsでのみ動作確認を行っております。Macは現状動作しません。（2025年10月時点）
+macOS 向けのビルド・インストール手順を `forMac/README.md` に用意しています。ただし実機での動作確認はまだ完了していないため、現時点では試験的な対応です。
 
 ・フィルタ実行したらなんか画面がチカチカします。あと動作中に画面クリックすると「応答を待ちますか？」みたいな画面が出ます。
 
@@ -283,7 +251,7 @@ Windowsでのみ動作確認を行っております。Macは現状動作しま�
 
 ・SubImageフォルダの画像は必須ですか？
 
-本プラグインのサンプルでは、NanoBanana、QwenImageEdit2509ではPicture 2が必須です。`Google Gemini Image(Nano-Banana) 4inputs` や `SeeDream4 4inputs` では Picture 2～4 を使います。`Nano Banana Generate` では Picture 2〜8 まで指定できます。
+本プラグインのサンプルでは、NanoBanana、Qwen Image Edit 2511ではPicture 2が必須です。`ByteDance Seedream5 4inputs` では Picture 2～4 を使います。`Nano Banana Generate` では Picture 2〜8 まで指定できます。
 一部のワークフローでは `(no image)` を選んでスキップすることもできます。
 
 ・SubImageフォルダに画像を置いてもフィルタの画面に表示されません。
@@ -358,8 +326,7 @@ ComfyUIPluginのフォルダの UserSetting.ini に以下のようにセクシ�
 
 ・inpaint的な使い方できる？
 
-生成AIには、画面全体、もしくは、選択した範囲のみ渡されます。
-マスクを渡す方法はありませんが、マスクしたい個所を赤く塗ってプロンプトで指示すればもしかしたら動くかもしれません。
+v0.5.0から可能です。
 
 ### 【上級編】
 ・実装が気に入りません。ビルドしなおすには？
@@ -371,9 +338,9 @@ ComfyUIPluginのフォルダの UserSetting.ini に以下のようにセクシ�
 
 既定では不要です。C++からWindows標準のWICを呼び出してPNG/BMPを変換します。問題の切り分けなどで必要な場合は、`UserSetting.ini`からPython（Pillow）変換にできます。
 
-・Macで動かすように直せる？
+・macOS版を使うには？
 
-画像変換を含めてWindows APIを利用しているほか、CLIP STUDIO PAINTプラグイン本体もWindows向けに実装されています。Mac対応には画像変換だけでなく、ファイル処理、通信、プラグインのビルド設定などを含む移植が必要です。
+ReleaseからMac版をダウンロードし、「install.sh」を実行してください。
 
 ## 補足情報
 

@@ -21,6 +21,7 @@
 
 #if defined(__APPLE__)
 #include <codecvt>
+#include <CoreFoundation/CoreFoundation.h>
 #include <dlfcn.h>
 #include <locale>
 #include <sys/wait.h>
@@ -322,10 +323,41 @@ void print(const wchar_t* format, ...) {
 	if (FILE* fp = OpenFile(g_DebugPath, "a")) { va_list arg; va_start(arg, format); std::vfwprintf(fp, format, arg); va_end(arg); std::fputws(L"\n", fp); std::fclose(fp); }
 }
 
+#if defined(__APPLE__)
+// クリスタのローカル文字列は Shift_JIS 系で返される。テンプレートは UTF-8
+// で配布するため、すでに UTF-8 の入力は維持し、それ以外だけ変換する。
+static std::string EnsureUtf8ForMac(const std::string& value) {
+	if (value.empty()) return value;
+	CFStringRef utf8 = CFStringCreateWithBytes(kCFAllocatorDefault,
+		reinterpret_cast<const UInt8*>(value.data()), static_cast<CFIndex>(value.size()),
+		kCFStringEncodingUTF8, false);
+	if (utf8) {
+		CFRelease(utf8);
+		return value;
+	}
+	CFStringRef shiftJis = CFStringCreateWithBytes(kCFAllocatorDefault,
+		reinterpret_cast<const UInt8*>(value.data()), static_cast<CFIndex>(value.size()),
+		kCFStringEncodingShiftJIS, false);
+	if (!shiftJis) return value;
+	const CFIndex length = CFStringGetLength(shiftJis);
+	const CFIndex capacity = CFStringGetMaximumSizeForEncoding(length, kCFStringEncodingUTF8);
+	std::string utf8Value(static_cast<size_t>(capacity), '\0');
+	CFIndex usedBytes = 0;
+	const Boolean converted = CFStringGetBytes(shiftJis, CFRangeMake(0, length),
+		kCFStringEncodingUTF8, 0, false, reinterpret_cast<UInt8*>(utf8Value.data()),
+		capacity, &usedBytes);
+	CFRelease(shiftJis);
+	if (!converted) return value;
+	utf8Value.resize(static_cast<size_t>(usedBytes));
+	return utf8Value;
+}
+#endif
+
 // curlでPOSTするためにjsonをファイルに書き出し
 void write_json_to_temp(const char* jsonstr, const std::string& tempPostJsonPath) {
 	std::remove(tempPostJsonPath.c_str());
-	if (FILE* fp = OpenFile(tempPostJsonPath, "w")) { std::fputs(jsonstr, fp); std::fputs("\n", fp); std::fclose(fp); }
+	std::string json = jsonstr ? jsonstr : "";
+	if (FILE* fp = OpenFile(tempPostJsonPath, "w")) { std::fputs(json.c_str(), fp); std::fputs("\n", fp); std::fclose(fp); }
 }
 #if defined(_WIN32)
 std::wstring ShiftJIS_to_UTF16(const std::string& str) {
@@ -549,7 +581,12 @@ std::string read_file_to_string(const std::string& path) {
     std::stringstream buffer;
     buffer << file.rdbuf();
 	file.close();
-    return buffer.str();
+	const auto contents = buffer.str();
+#if defined(__APPLE__)
+	return EnsureUtf8ForMac(contents);
+#else
+    return contents;
+#endif
 }
 std::wstring read_file_to_wstring(const std::string& path) {
     std::wfstream file(path);
@@ -568,7 +605,7 @@ std::string ansi_to_utf8(const std::string& value) {
 	const int utf8Length = WideCharToMultiByte(CP_UTF8, 0, wide.data(), -1, nullptr, 0, nullptr, nullptr); if (utf8Length <= 0) return value;
 	std::string utf8(static_cast<size_t>(utf8Length - 1), '\0'); WideCharToMultiByte(CP_UTF8, 0, wide.data(), -1, utf8.data(), utf8Length, nullptr, nullptr); return utf8;
 #else
-	return value;
+	return EnsureUtf8ForMac(value);
 #endif
 }
 /**
