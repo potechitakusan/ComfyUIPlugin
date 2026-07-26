@@ -28,7 +28,12 @@ ComfyUIでできない画像生成は、本プラグインを導入しても実�
 
 ## 使用方法
 
-使用イメージは[Xのポスト](https://x.com/potechi_takusan/status/1976281630278029393)を参照してください。
+使用イメージは[Xのポスト](https://x.com/potechi_takusan/status/1976281630278029393) を参照してください。
+<br>
+インストールの全体の流れは [【クリスタ×ComfyUI】v0.5.1対応版！ ComfyUIPluginをWindows 11にインストールする手順](https://note.com/potechi_takusan/n/nd5617c21078d) を参照してください。<br>
+（ご注意）このgitリポジトリは、ComfyUIのcustom_nodeにclone **するものではありません** 。Releaseページからzipをダウンロードしてご利用ください。<br>
+<br>
+以下はざっくりした説明です。<br>
 <br>
 [リリースページ](https://github.com/potechitakusan/ComfyUIPlugin/releases) から最新バージョンをダウンロードしてください。<br>
 展開したフォルダの「ComfyUIPlugin_install.bat」を実行してください。ComfyUI のセットアップ方法を選択した後、プラグイン本体・サンプルワークフロー・input 用画像を必要な場所へコピーします。<br>
