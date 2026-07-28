@@ -5,7 +5,6 @@
  */
 #include "pch.h"
 
-#include "SDPlugin.h"
 #include "FilterPlugIn.h"
 
 namespace FilterPlugIn {
